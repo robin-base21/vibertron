@@ -18,7 +18,10 @@
 		e.preventDefault();
 		busy = true;
 		try {
-			const { event } = await eventsApi.create({ name: name.trim(), slug: slug.trim() || undefined });
+			const { event } = await eventsApi.create({
+				name: name.trim(),
+				slug: slug.trim() || undefined
+			});
 			await goto(`/manage/${event.id}`);
 		} catch (err) {
 			handleError(err);
@@ -33,10 +36,19 @@
 <main class="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-8">
 	<h1 class="bp-label text-4xl font-semibold">Events</h1>
 
-	<form class="flex flex-col gap-3 border border-bp-line/40 p-4 sm:flex-row sm:items-end" onsubmit={create}>
+	<form
+		class="flex flex-col gap-3 border border-bp-line/40 p-4 sm:flex-row sm:items-end"
+		onsubmit={create}
+	>
 		<label class="flex flex-1 flex-col gap-1">
 			<span class="bp-label text-xs opacity-70">New event name</span>
-			<input class="input w-full" required maxlength="80" placeholder="Vibeathon #3" bind:value={name} />
+			<input
+				class="input w-full"
+				required
+				maxlength="80"
+				placeholder="Vibeathon #3"
+				bind:value={name}
+			/>
 		</label>
 		<label class="flex flex-col gap-1 sm:w-64">
 			<span class="bp-label text-xs opacity-70">Slug (optional)</span>
@@ -48,7 +60,7 @@
 				bind:value={slug}
 			/>
 		</label>
-		<button class="btn btn-primary bp-label" disabled={busy || !name.trim()}>Create event</button>
+		<button class="btn bp-label btn-primary" disabled={busy || !name.trim()}>Create event</button>
 	</form>
 
 	{#if sorted.length === 0}
@@ -70,7 +82,10 @@
 				<tbody>
 					{#each sorted as ev (ev.id)}
 						<tr class="hover:bg-base-200">
-							<td><a class="bp-label text-lg hover:underline" href="/manage/{ev.id}">{ev.name}</a></td>
+							<td
+								><a class="bp-label text-lg hover:underline" href="/manage/{ev.id}">{ev.name}</a
+								></td
+							>
 							<td class="font-mono text-xs opacity-70">{ev.slug}</td>
 							<td><StatusBadge status={ev.status} /></td>
 							<td class="text-right font-mono">{ev.participantCount}</td>

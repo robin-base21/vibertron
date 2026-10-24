@@ -19,7 +19,9 @@
 			friendCode = '';
 		} catch (err) {
 			pairError =
-				err instanceof ApiError && err.status === 404 ? 'No one here has that code' : errorMessage(err);
+				err instanceof ApiError && err.status === 404
+					? 'No one here has that code'
+					: errorMessage(err);
 		} finally {
 			pairing = false;
 		}
@@ -43,7 +45,8 @@
 
 	<section class="flex flex-col items-center gap-2 border border-bp-line/60 px-4 py-6">
 		<span class="bp-label text-xs opacity-60">Your friend code</span>
-		<span class="font-mono text-5xl font-medium tracking-[0.3em] select-all">{s.me.friendCode}</span>
+		<span class="font-mono text-5xl font-medium tracking-[0.3em] select-all">{s.me.friendCode}</span
+		>
 		<span class="text-center font-mono text-xs opacity-60">
 			Share it with a friend to be put on the same team.
 		</span>
@@ -53,7 +56,7 @@
 		<h2 class="bp-label text-lg">Pair with a friend</h2>
 		<form class="flex gap-2" onsubmit={pair}>
 			<input
-				class="input input-lg min-w-0 flex-1 font-mono tracking-[0.2em] uppercase"
+				class="input min-w-0 flex-1 font-mono tracking-[0.2em] uppercase input-lg"
 				placeholder="FRIEND CODE"
 				autocapitalize="characters"
 				autocomplete="off"
@@ -63,7 +66,10 @@
 				required
 				bind:value={friendCode}
 			/>
-			<button class="btn btn-primary btn-lg bp-label" disabled={pairing || friendCode.trim().length < 4}>
+			<button
+				class="btn bp-label btn-lg btn-primary"
+				disabled={pairing || friendCode.trim().length < 4}
+			>
 				Send
 			</button>
 		</form>
@@ -79,7 +85,7 @@
 							<span class="text-lg">{p.fromName}</span>
 							<span class="bp-label text-xs text-bp-accent">Wants to team up</span>
 						</div>
-						<button class="btn btn-primary btn-sm bp-label" onclick={act(() => s.accept(p.id))}>
+						<button class="btn bp-label btn-primary btn-sm" onclick={act(() => s.accept(p.id))}>
 							<Check size={14} /> Accept
 						</button>
 						<button
@@ -97,7 +103,10 @@
 							<span class="text-lg">{p.toName}</span>
 							<span class="bp-label text-xs opacity-60">Waiting for them to accept</span>
 						</div>
-						<button class="btn btn-ghost btn-sm bp-label" onclick={act(() => s.removePairing(p.id))}>
+						<button
+							class="btn btn-ghost bp-label btn-sm"
+							onclick={act(() => s.removePairing(p.id))}
+						>
 							Cancel
 						</button>
 					</li>
@@ -108,7 +117,10 @@
 							<span class="text-lg">{s.partnerName(p)}</span>
 							<span class="bp-label text-xs">Paired · same team</span>
 						</div>
-						<button class="btn btn-ghost btn-sm bp-label" onclick={act(() => s.removePairing(p.id))}>
+						<button
+							class="btn btn-ghost bp-label btn-sm"
+							onclick={act(() => s.removePairing(p.id))}
+						>
 							Unpair
 						</button>
 					</li>
@@ -117,7 +129,9 @@
 		{/if}
 	</section>
 
-	<section class="flex items-center justify-center gap-3 border border-dashed border-bp-line/40 py-6">
+	<section
+		class="flex items-center justify-center gap-3 border border-dashed border-bp-line/40 py-6"
+	>
 		<span class="size-2 animate-pulse bg-bp-line"></span>
 		<span class="bp-label text-lg">Waiting for launch</span>
 	</section>

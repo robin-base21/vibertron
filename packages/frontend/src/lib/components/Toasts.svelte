@@ -12,11 +12,15 @@
 			]}
 			role={t.kind === 'error' ? 'alert' : 'status'}
 		>
-			<span class="bp-label shrink-0 text-[0.7rem] opacity-70">
+			<span class="shrink-0 bp-label text-[0.7rem] opacity-70">
 				{t.kind === 'error' ? 'ERR' : t.kind === 'success' ? 'OK' : 'INFO'}
 			</span>
 			<span class="flex-1 break-words whitespace-normal">{t.message}</span>
-			<button class="opacity-60 hover:opacity-100" onclick={() => toasts.dismiss(t.id)} aria-label="Dismiss">
+			<button
+				class="opacity-60 hover:opacity-100"
+				onclick={() => toasts.dismiss(t.id)}
+				aria-label="Dismiss"
+			>
 				<X size={14} />
 			</button>
 		</div>

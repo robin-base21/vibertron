@@ -13,6 +13,11 @@ export const load: PageLoad = async ({ fetch, params, url }) => {
 		})
 	]);
 	// Already in? Skip the form.
-	if (me.participations.some((p) => p.eventId === res.event.id)) redirect(307, `/e/${res.event.slug}`);
-	return { token: params.token, code: url.searchParams.get('c')?.trim().toUpperCase() ?? '', event: res.event };
+	if (me.participations.some((p) => p.eventId === res.event.id))
+		redirect(307, `/e/${res.event.slug}`);
+	return {
+		token: params.token,
+		code: url.searchParams.get('c')?.trim().toUpperCase() ?? '',
+		event: res.event
+	};
 };

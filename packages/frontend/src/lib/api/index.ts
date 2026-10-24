@@ -167,4 +167,3 @@ export const live = {
 		api<LiveSnapshotDTO>(`/api/e/${e(slug)}/live`, { fetch }),
 	health: (fetch?: Fetch) => api<{ ok: true; time: number }>('/api/health', { fetch })
 };
-

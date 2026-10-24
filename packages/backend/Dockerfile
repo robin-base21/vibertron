@@ -14,5 +14,11 @@ COPY --from=install /app/node_modules ./node_modules
 COPY packages/common packages/common
 COPY packages/backend packages/backend
 WORKDIR /app/packages/backend
+ENV NODE_ENV=production \
+    PORT=3001 \
+    DATABASE_PATH=/data/vibertron.sqlite \
+    UPLOAD_DIR=/data/uploads
+VOLUME ["/data"]
 EXPOSE 3001
-CMD ["sh", "-c", "bun run src/db/migrate.ts && bun run index.ts"]
+# Migrate, seed the admin (idempotent; skipped when ADMIN_EMAIL/ADMIN_PASSWORD are unset), then serve.
+CMD ["sh", "-c", "bun run src/db/migrate.ts && bun run src/db/seed.ts && exec bun run index.ts"]

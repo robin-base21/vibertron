@@ -32,7 +32,8 @@ class WebSocketStore {
 			this.connected = true;
 			this.error = null;
 			this.send({ type: 'ping' });
-			for (const [slug, scope] of this.#subscriptions) this.send({ type: 'subscribe', slug, scope });
+			for (const [slug, scope] of this.#subscriptions)
+				this.send({ type: 'subscribe', slug, scope });
 			clearInterval(this.#ping);
 			this.#ping = setInterval(() => this.send({ type: 'ping' }), 30_000);
 		};
@@ -70,8 +71,10 @@ class WebSocketStore {
 	}
 
 	#dispatch(event: ServerEvent) {
-		if (event.type === 'pong' || event.type === 'event.updated') this.clockOffset = event.serverTime - Date.now();
-		if (event.type === 'subscribed' || event.type === 'launched') this.clockOffset = event.snapshot.serverTime - Date.now();
+		if (event.type === 'pong' || event.type === 'event.updated')
+			this.clockOffset = event.serverTime - Date.now();
+		if (event.type === 'subscribed' || event.type === 'launched')
+			this.clockOffset = event.snapshot.serverTime - Date.now();
 		if (event.type === 'error') this.error = event.message;
 		for (const h of this.#handlers.get(event.type) ?? []) h(event);
 		for (const h of this.#handlers.get('*') ?? []) h(event);

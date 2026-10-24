@@ -10,8 +10,13 @@ services:
       - NODE_ENV=production
       - DATABASE_PATH=/data/vibertron.sqlite
       - UPLOAD_DIR=/data/uploads
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.5-pro}
+      - MESSAGE_RATE_LIMIT_MS=${MESSAGE_RATE_LIMIT_MS:-10000}
     volumes:
       - vibertron-data:/data
     restart: unless-stopped
