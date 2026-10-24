@@ -77,7 +77,7 @@
 			<label class="flex flex-col gap-1">
 				<span class="bp-label text-xs opacity-70">Your name</span>
 				<input
-					class="input input-lg w-full"
+					class="input w-full input-lg"
 					required
 					maxlength="40"
 					autocomplete="nickname"
@@ -90,7 +90,7 @@
 				<label class="flex flex-col gap-1">
 					<span class="bp-label text-xs opacity-70">Enter the code shown on the venue screen</span>
 					<input
-						class="input input-lg w-full text-center font-mono text-3xl tracking-[0.4em] uppercase"
+						class="input w-full text-center font-mono text-3xl tracking-[0.4em] uppercase input-lg"
 						required
 						inputmode="text"
 						autocapitalize="characters"
@@ -108,7 +108,7 @@
 				<p class="font-mono text-xs text-error" role="alert">{error}</p>
 			{/if}
 
-			<button class="btn btn-primary btn-lg bp-label" disabled={busy || !valid}>
+			<button class="btn bp-label btn-lg btn-primary" disabled={busy || !valid}>
 				{busy ? 'Joining…' : 'Join'}
 			</button>
 		</form>

@@ -6,7 +6,7 @@
 
 <span
 	class={[
-		'bp-label inline-flex items-center gap-1.5 border px-2 py-0.5 text-xs',
+		'inline-flex items-center gap-1.5 border px-2 py-0.5 bp-label text-xs',
 		status === 'live' ? 'border-bp-accent text-bp-accent' : 'border-bp-line/50',
 		status === 'ended' && 'opacity-50'
 	]}

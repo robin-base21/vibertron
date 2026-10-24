@@ -8,7 +8,7 @@
 	import { session } from '$lib/stores/session.svelte';
 	import { handleError, toasts } from '$lib/stores/toast.svelte';
 	import { wsStore } from '$lib/stores/websocket.svelte';
-	import type { EventDTO, MessageDTO, PublicEventDTO } from 'common';
+	import type { EventDTO, MessageDTO, PublicEventDTO, TeamDTO } from 'common';
 	import { Copy, ExternalLink, QrCode, Trash2 } from '@lucide/svelte';
 
 	let { data } = $props();
@@ -19,6 +19,10 @@
 	let invites = $derived(data.invites);
 
 	let messages = $state<MessageDTO[]>([]);
+	let teams = $state<TeamDTO[]>([]);
+	const teamLabel = $derived(
+		new Map(teams.map((t) => [t.id, t.codename ? `${t.codename} (${t.name})` : t.name]))
+	);
 	let busy = $state(false);
 	let launchDialog: LaunchDialog | undefined = $state();
 
@@ -53,8 +57,16 @@
 				if (e.snapshot.event.id !== id) return;
 				mergeEvent(e.snapshot.event);
 				messages = e.snapshot.messages;
+				teams = e.snapshot.teams;
 			}),
-			wsStore.on('launched', (e) => mergeEvent(e.snapshot.event)),
+			wsStore.on('launched', (e) => {
+				if (e.snapshot.event.id !== id) return;
+				mergeEvent(e.snapshot.event);
+				teams = e.snapshot.teams;
+			}),
+			wsStore.on('team.updated', (e) => {
+				if (e.team.eventId === id) teams = teams.map((t) => (t.id === e.team.id ? e.team : t));
+			}),
 			// Managers get every message (incl. hidden) on the manage topic; public copies dedupe.
 			wsStore.on('message.manage', (e) => upsertMessage(e.message)),
 			wsStore.on('message.created', (e) => upsertMessage(e.message)),
@@ -275,9 +287,11 @@
 							<tbody>
 								{#each sortedParticipants as p (p.id)}
 									<tr>
-										<td>{p.displayName}</td>
+										<td class="text-base">{p.displayName}</td>
 										<td class="font-mono text-xs">{p.friendCode}</td>
-										<td class="font-mono text-xs opacity-70">{p.teamId ?? '—'}</td>
+										<td class="bp-label text-sm opacity-80"
+											>{p.teamId ? (teamLabel.get(p.teamId) ?? '…') : '—'}</td
+										>
 										<td class="text-right font-mono text-xs opacity-70">
 											{new Date(p.joinedAt).toLocaleTimeString([], {
 												hour: '2-digit',
@@ -375,7 +389,8 @@
 <LaunchDialog
 	bind:this={launchDialog}
 	{event}
-	onlaunched={(next) => {
+	onlaunched={(next, launchedTeams) => {
+		teams = launchedTeams;
 		event = next;
 		eventsApi.participants(eventId).then((r) => (participants = r.participants), handleError);
 	}}
