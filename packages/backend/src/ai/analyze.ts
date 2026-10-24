@@ -107,6 +107,7 @@ function baseBlueprint(input: BuildInput): Blueprint {
 	return {
 		schemaVersion: 1,
 		canvas: canvasOf(input),
+		walls: [],
 		underlay: { imageRef: input.imageRef, opacity: 0.35 },
 		outlines: input.outlines.map(
 			(points, i): Outline => ({ id: `o${i + 1}`, kind: 'wall', points: points.map(round), closed: points.length > 2 })

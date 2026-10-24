@@ -1,4 +1,4 @@
-import { Blueprint, emptyBlueprint, centroid, type Point, type Segment } from './blueprint';
+import { Blueprint, emptyBlueprint, centroid, type Outline, type Point, type Segment, type Wall } from './blueprint';
 
 /*
 Blueprint markup: one statement per line, `#` starts a comment.
@@ -6,9 +6,11 @@ Blueprint markup: one statement per line, `#` starts a comment.
   title "Vibeathon #3" date 2026-10-24 rev A
   segment "Hall A" rect 100,100 300x200 stations 12 grid [id seg_a] [label 250,200] [unconfirmed] [confidence 0.7]
   segment "Lounge" poly 500,100 800,100 800,400 stations 6 row
+  wall 0,0 1000,0 [id w1]
+  room "Kitchen" rect 600,500 200x150 [id r1]      # labelled non-work area (an outline)
 
-Outlines and the underlay are not part of the markup; they are preserved from the
-base blueprint passed to `parseMarkup`.
+The underlay and unlabelled (decorative) outlines are not part of the markup; they are
+preserved from the base blueprint passed to `parseMarkup`.
 */
 
 export interface MarkupError {
@@ -25,6 +27,10 @@ const quote = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
 export function serializeMarkup(bp: Blueprint): string {
 	const t = bp.titleBlock;
 	const lines = [`title ${quote(t.project)} date ${t.date} rev ${t.rev}`];
+	for (const w of bp.walls) lines.push(`wall ${pt(w.a)} ${pt(w.b)} id ${w.id}`);
+	for (const o of bp.outlines) {
+		if (o.label) lines.push(`room ${quote(o.label)} poly ${o.points.map(pt).join(' ')} id ${o.id}`);
+	}
 	for (const s of bp.segments) {
 		let geom: string;
 		if (s.shape === 'rect') {
@@ -65,6 +71,37 @@ function parseSize(t: string | undefined): [number, number] | null {
 	return m ? [Number(m[1]), Number(m[2])] : null;
 }
 
+/** Consumes `rect x,y WxH` or `poly x,y x,y x,y ...` from the token list. */
+function parseGeometry(tk: string[]): { shape: Segment['shape']; points: Point[] } | string {
+	const shapeTok = tk.shift();
+	if (shapeTok === 'rect') {
+		const origin = parsePoint(tk.shift());
+		const size = parseSize(tk.shift());
+		if (!origin || !size) return 'rect expects "x,y WxH"';
+		return { shape: 'rect', points: [origin, [origin[0] + size[0], origin[1] + size[1]]] };
+	}
+	if (shapeTok === 'poly') {
+		const points: Point[] = [];
+		while (tk.length && parsePoint(tk[0])) points.push(parsePoint(tk.shift())!);
+		if (points.length < 3) return 'poly expects at least 3 points "x,y"';
+		return { shape: 'polygon', points };
+	}
+	return 'expected "rect" or "poly"';
+}
+
+/** Returns `preferred` (erroring on duplicates) or the first free `${prefix}${n}`. */
+function claimId(used: Set<string>, preferred: string | undefined, prefix: string): string | null {
+	if (preferred) {
+		if (used.has(preferred)) return null;
+		used.add(preferred);
+		return preferred;
+	}
+	let n = 1;
+	while (used.has(`${prefix}${n}`)) n++;
+	used.add(`${prefix}${n}`);
+	return `${prefix}${n}`;
+}
+
 function slug(name: string): string {
 	return (
 		'seg_' +
@@ -78,8 +115,14 @@ function slug(name: string): string {
 export function parseMarkup(src: string, base: Blueprint = emptyBlueprint()): MarkupResult {
 	const errors: MarkupError[] = [];
 	const segments: Segment[] = [];
+	const walls: Wall[] = [];
+	const rooms: Outline[] = [];
 	const titleBlock = { ...base.titleBlock };
 	const usedIds = new Set<string>();
+	const usedWallIds = new Set<string>();
+	// Labelled outlines come from the markup; decorative ones are kept from the base.
+	const keptOutlines = base.outlines.filter((o) => !o.label);
+	const usedOutlineIds = new Set(keptOutlines.map((o) => o.id));
 
 	src.split('\n').forEach((raw, i) => {
 		const lineNo = i + 1;
@@ -104,27 +147,49 @@ export function parseMarkup(src: string, base: Blueprint = emptyBlueprint()): Ma
 			return;
 		}
 
+		if (head === 'wall') {
+			const a = parsePoint(tk.shift());
+			const b = parsePoint(tk.shift());
+			if (!a || !b) return err('wall expects "x1,y1 x2,y2"');
+			let wid: string | undefined;
+			while (tk.length) {
+				const key = tk.shift();
+				if (key === 'id') wid = tk.shift();
+				else return err(`unknown wall option "${key}"`);
+			}
+			const id = claimId(usedWallIds, wid, 'w');
+			if (!id) return err(`duplicate id "${wid}"`);
+			walls.push({ id, a, b });
+			return;
+		}
+
+		if (head === 'room') {
+			const label = tk.shift();
+			if (!isString(label) || !unq(label!)) return err('room expects a quoted name');
+			const geom = parseGeometry(tk);
+			if (typeof geom === 'string') return err(geom);
+			let rid: string | undefined;
+			while (tk.length) {
+				const key = tk.shift();
+				if (key === 'id') rid = tk.shift();
+				else return err(`unknown room option "${key}"`);
+			}
+			const id = claimId(usedOutlineIds, rid, 'r');
+			if (!id) return err(`duplicate id "${rid}"`);
+			const [p0, p1] = geom.points as [Point, Point];
+			const points: Point[] =
+				geom.shape === 'rect' ? [p0, [p1[0], p0[1]], p1, [p0[0], p1[1]]] : geom.points;
+			rooms.push({ id, kind: 'room', points, closed: true, label: unq(label!) });
+			return;
+		}
+
 		if (head !== 'segment') return err(`unknown statement "${head}"`);
 
 		const name = tk.shift();
 		if (!isString(name) || !unq(name!)) return err('segment expects a quoted name');
-		const shapeTok = tk.shift();
-		let shape: Segment['shape'];
-		let points: Point[];
-		if (shapeTok === 'rect') {
-			const origin = parsePoint(tk.shift());
-			const size = parseSize(tk.shift());
-			if (!origin || !size) return err('rect expects "x,y WxH"');
-			shape = 'rect';
-			points = [origin, [origin[0] + size[0], origin[1] + size[1]]];
-		} else if (shapeTok === 'poly') {
-			points = [];
-			while (tk.length && parsePoint(tk[0])) points.push(parsePoint(tk.shift())!);
-			if (points.length < 3) return err('poly expects at least 3 points "x,y"');
-			shape = 'polygon';
-		} else {
-			return err('expected "rect" or "poly"');
-		}
+		const geom = parseGeometry(tk);
+		if (typeof geom === 'string') return err(geom);
+		const { shape, points } = geom;
 
 		if (tk.shift() !== 'stations') return err('expected "stations <count> <grid|row>"');
 		const count = Number(tk.shift());
@@ -171,7 +236,7 @@ export function parseMarkup(src: string, base: Blueprint = emptyBlueprint()): Ma
 	});
 
 	if (errors.length) return { ok: false, errors };
-	const parsed = Blueprint.safeParse({ ...base, segments, titleBlock });
+	const parsed = Blueprint.safeParse({ ...base, walls, outlines: [...keptOutlines, ...rooms], segments, titleBlock });
 	if (!parsed.success) {
 		return { ok: false, errors: parsed.error.issues.map((i) => ({ line: 0, message: `${i.path.join('.')}: ${i.message}` })) };
 	}
