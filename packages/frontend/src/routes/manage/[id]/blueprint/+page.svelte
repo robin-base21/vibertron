@@ -268,8 +268,8 @@
 	{/if}
 
 	<div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
-		<div class="border border-bp-line/40">
-			<EditorCanvas bind:this={canvas} {editor} {showUnderlay} {invert} class="w-full" />
+		<div class="border border-bp-line/40 lg:h-[calc(100vh-15rem)] lg:min-h-[480px]">
+			<EditorCanvas bind:this={canvas} {editor} {showUnderlay} {invert} class="h-full w-full" />
 		</div>
 
 		<aside class="flex flex-col gap-3 border border-bp-line/40 p-3">

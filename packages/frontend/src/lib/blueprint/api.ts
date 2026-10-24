@@ -13,7 +13,9 @@ export async function saveBlueprint(eventId: string, blueprint: Blueprint, versi
 		const r = await blueprints.save(eventId, { blueprint, version });
 		return { ok: true, version: r.version };
 	} catch (e) {
-		if (e instanceof ApiError && e.status === 409) return { ok: false, conflict: true };
+		// A version mismatch carries `details.version`; other 409s (e.g. locked while live) are errors.
+		const details = e instanceof ApiError ? (e.details as { version?: number } | undefined) : undefined;
+		if (e instanceof ApiError && e.status === 409 && details?.version !== undefined) return { ok: false, conflict: true };
 		throw e;
 	}
 }
