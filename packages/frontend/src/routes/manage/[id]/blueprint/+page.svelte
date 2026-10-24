@@ -12,6 +12,7 @@
 		Lock,
 		MousePointer2,
 		Pentagon,
+		PenLine,
 		Printer,
 		Redo2,
 		Save,
@@ -51,7 +52,7 @@
 
 	function acceptDraft(next: BlueprintT) {
 		editor.apply(next);
-		editor.selectedId = null;
+		editor.select(null);
 		showUnderlay = true;
 		importing = false;
 		toasts.success(`Draft applied: ${next.walls.length} walls, ${next.segments.length} segments. Review names and set station counts.`);
@@ -65,8 +66,32 @@
 	const tools: { id: Tool; label: string; key: string; icon: typeof Square }[] = [
 		{ id: 'select', label: 'Select', key: 'V', icon: MousePointer2 },
 		{ id: 'rect', label: 'Rect', key: 'R', icon: Square },
-		{ id: 'polygon', label: 'Polygon', key: 'P', icon: Pentagon }
+		{ id: 'polygon', label: 'Polygon', key: 'P', icon: Pentagon },
+		{ id: 'wall', label: 'Wall', key: 'W', icon: PenLine }
 	];
+
+	const toolKeys: Record<string, Tool> = { v: 'select', r: 'rect', p: 'polygon', w: 'wall' };
+
+	/** Delete removes the selected vertex, else the selected segment / wall / room. */
+	function deleteSelection() {
+		if (editor.selectedId && editor.selectedVertex !== null) editor.deleteVertex(editor.selectedId, editor.selectedVertex);
+		else if (editor.selectedId) editor.deleteSegment(editor.selectedId);
+		else if (editor.selectedWallId) editor.deleteWall(editor.selectedWallId);
+		else if (editor.selectedRoomId) editor.deleteRoom(editor.selectedRoomId);
+		else return false;
+		return true;
+	}
+
+	function nudge(dx: number, dy: number) {
+		const mv = ([x, y]: [number, number]): [number, number] => [x + dx, y + dy];
+		if (editor.selectedId) {
+			editor.updateSegment(editor.selectedId, (s) => ({ ...s, points: s.points.map(mv), labelPos: mv(s.labelPos) }), `nudge:${editor.selectedId}`);
+		} else if (editor.selectedWallId) {
+			editor.updateWall(editor.selectedWallId, (w) => ({ ...w, a: mv(w.a), b: mv(w.b) }), `nudge:${editor.selectedWallId}`);
+		} else if (editor.selectedRoomId) {
+			editor.updateRoom(editor.selectedRoomId, (o) => ({ ...o, points: o.points.map(mv) }), `nudge:${editor.selectedRoomId}`);
+		}
+	}
 
 	async function save() {
 		if (saving || locked) return;
@@ -143,29 +168,20 @@
 		} else if (mod && k === 'y') {
 			e.preventDefault();
 			editor.redo();
-		} else if ((e.key === 'Delete' || e.key === 'Backspace') && editor.selectedId) {
-			e.preventDefault();
-			editor.deleteSegment(editor.selectedId);
+		} else if (e.key === 'Delete' || e.key === 'Backspace') {
+			if (deleteSelection()) e.preventDefault();
 		} else if (e.key === 'Escape') {
-			if (!canvas?.cancelDrawing()) editor.selectedId = null;
-		} else if (e.key === 'Enter' && editor.selectedId) {
+			if (canvas?.cancelDrawing()) return;
+			if (editor.tool !== 'select') setTool('select');
+			else editor.select(null);
+		} else if (e.key === 'Enter' && (editor.selectedId || editor.selectedRoomId)) {
 			canvas?.startRename();
-		} else if (!mod && (k === 'v' || k === 'r' || k === 'p')) {
-			setTool(k === 'v' ? 'select' : k === 'r' ? 'rect' : 'polygon');
-		} else if (e.key.startsWith('Arrow') && editor.selectedId) {
+		} else if (!mod && toolKeys[k]) {
+			setTool(toolKeys[k]);
+		} else if (e.key.startsWith('Arrow') && (editor.selectedId || editor.selectedWallId || editor.selectedRoomId)) {
 			e.preventDefault();
 			const step = e.shiftKey ? 50 : 10;
-			const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
-			const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
-			editor.updateSegment(
-				editor.selectedId,
-				(s) => ({
-					...s,
-					points: s.points.map(([x, y]) => [x + dx, y + dy] as [number, number]),
-					labelPos: [s.labelPos[0] + dx, s.labelPos[1] + dy]
-				}),
-				`nudge:${editor.selectedId}`
-			);
+			nudge(e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0, e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0);
 		}
 	}
 
@@ -194,7 +210,7 @@
 			<h1 class="bp-label text-2xl leading-none font-semibold">{data.eventName}</h1>
 		</div>
 		<span class="font-mono text-xs opacity-60">
-			{editor.bp.segments.length} SEG · {totalStations(editor.bp)} ST · V{version}{dirty ? ' · UNSAVED' : ''}
+			{editor.bp.walls.length} WALLS · {editor.bp.segments.length} SEG · {totalStations(editor.bp)} ST · V{version}{dirty ? ' · UNSAVED' : ''}
 		</span>
 		<button class="btn btn-sm btn-primary bp-label" onclick={save} disabled={locked || saving || (!dirty && !data.fixture)}>
 			<Save size={14} />
@@ -228,7 +244,7 @@
 			class={['btn btn-sm bp-label', editor.snap ? 'btn-outline' : 'btn-ghost opacity-60']}
 			onclick={() => (editor.snap = !editor.snap)}
 			disabled={locked}
-			title="Snap to the 10-unit grid (hold Alt to bypass)"
+			title="Snap to walls and the 10-unit grid (hold Alt to bypass)"
 		>
 			<Grid3x3 size={14} /> Snap
 		</button>
@@ -279,7 +295,7 @@
 					<button
 						class="bp-label border border-bp-line/40 px-2 text-xs hover:border-bp-accent"
 						onclick={() => {
-							editor.selectedId = s.id;
+							editor.select('segment', s.id);
 							tab = 'segment';
 						}}>{s.name} · <span class="font-mono">{s.stations.count}</span></button
 					>
@@ -300,7 +316,7 @@
 
 		<aside class="flex flex-col gap-3 border border-bp-line/40 p-3">
 			<div role="tablist" class="tabs tabs-border">
-				<button role="tab" class={['tab bp-label', tab === 'segment' && 'tab-active']} onclick={() => (tab = 'segment')}>Segment</button>
+				<button role="tab" class={['tab bp-label', tab === 'segment' && 'tab-active']} onclick={() => (tab = 'segment')}>Selection</button>
 				<button role="tab" class={['tab bp-label', tab === 'markup' && 'tab-active']} onclick={() => (tab = 'markup')}>Markup</button>
 				<button role="tab" class={['tab bp-label', tab === 'sheet' && 'tab-active']} onclick={() => (tab = 'sheet')}>Sheet</button>
 			</div>

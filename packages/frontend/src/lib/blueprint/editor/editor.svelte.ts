@@ -1,15 +1,23 @@
-import { bounds, centroid, type Blueprint, type Point, type Segment } from 'common';
+import { bounds, centroid, type Blueprint, type Outline, type Point, type Segment, type Wall } from 'common';
+import { orthogonalize } from '$lib/floorplan/ortho';
 import { normRect, uid } from '../geometry';
 
 const HISTORY_LIMIT = 200;
 const COALESCE_MS = 800;
 
-export type Tool = 'select' | 'rect' | 'polygon';
+export type Tool = 'select' | 'rect' | 'polygon' | 'wall';
+export type SelectKind = 'segment' | 'wall' | 'room';
 
 /** Editor document: the blueprint plus selection and undo/redo history. */
 export class Editor {
 	bp: Blueprint = $state.raw(null as unknown as Blueprint);
+	/** Selected segment (one of selectedId / selectedWallId / selectedRoomId is set at a time). */
 	selectedId: string | null = $state(null);
+	selectedWallId: string | null = $state(null);
+	/** Selected labelled outline (non-work room). */
+	selectedRoomId: string | null = $state(null);
+	/** Selected vertex of the selected polygon segment (Delete removes it). */
+	selectedVertex: number | null = $state(null);
 	tool: Tool = $state('select');
 	snap = $state(true);
 
@@ -24,6 +32,21 @@ export class Editor {
 
 	get selected(): Segment | null {
 		return this.bp.segments.find((s) => s.id === this.selectedId) ?? null;
+	}
+
+	get selectedWall(): Wall | null {
+		return this.bp.walls.find((w) => w.id === this.selectedWallId) ?? null;
+	}
+
+	get selectedRoom(): Outline | null {
+		return this.bp.outlines.find((o) => o.id === this.selectedRoomId && o.label) ?? null;
+	}
+
+	select(kind: SelectKind | null, id: string | null = null) {
+		this.selectedId = kind === 'segment' ? id : null;
+		this.selectedWallId = kind === 'wall' ? id : null;
+		this.selectedRoomId = kind === 'room' ? id : null;
+		this.selectedVertex = null;
 	}
 
 	get canUndo() {
@@ -54,7 +77,7 @@ export class Editor {
 	apply(next: Blueprint, key?: string) {
 		this.checkpoint(key);
 		this.bp = next;
-		if (this.selectedId && !next.segments.some((s) => s.id === this.selectedId)) this.selectedId = null;
+		this.#fixSelection();
 	}
 
 	/** Replace without recording history (live drag updates after a checkpoint). */
@@ -67,7 +90,7 @@ export class Editor {
 		this.bp = bp;
 		this.#past = [];
 		this.#future = [];
-		this.selectedId = null;
+		this.select(null);
 	}
 
 	undo() {
@@ -92,6 +115,10 @@ export class Editor {
 
 	#fixSelection() {
 		if (this.selectedId && !this.bp.segments.some((s) => s.id === this.selectedId)) this.selectedId = null;
+		if (this.selectedWallId && !this.selectedWall) this.selectedWallId = null;
+		if (this.selectedRoomId && !this.selectedRoom) this.selectedRoomId = null;
+		const s = this.selected;
+		if (this.selectedVertex !== null && (!s || s.shape !== 'polygon' || this.selectedVertex >= s.points.length)) this.selectedVertex = null;
 	}
 
 	/** Immutable segment update, live (no checkpoint). */
@@ -119,14 +146,96 @@ export class Editor {
 		};
 		this.checkpoint();
 		this.bp = { ...this.bp, segments: [...this.bp.segments, seg] };
-		this.selectedId = seg.id;
+		this.select('segment', seg.id);
 		return seg;
 	}
 
 	deleteSegment(id: string) {
 		this.checkpoint();
 		this.bp = { ...this.bp, segments: this.bp.segments.filter((s) => s.id !== id) };
-		if (this.selectedId === id) this.selectedId = null;
+		this.#fixSelection();
+	}
+
+	/** Remove one polygon vertex (a polygon keeps at least 3). */
+	deleteVertex(id: string, index: number) {
+		const s = this.bp.segments.find((x) => x.id === id);
+		if (!s || s.shape !== 'polygon' || s.points.length <= 3) return;
+		this.updateSegment(id, (seg) => ({ ...seg, points: seg.points.filter((_, i) => i !== index) }));
+		this.selectedVertex = null;
+	}
+
+	/** Polygon → its bounding rect. */
+	convertToRect(id: string) {
+		const s = this.bp.segments.find((x) => x.id === id);
+		if (!s || s.shape === 'rect') return;
+		const b = bounds(s.points);
+		this.updateSegment(id, (seg) => refitLabel(seg, { ...seg, shape: 'rect', points: [[b.x, b.y], [b.x + b.w, b.y + b.h]] }));
+		this.selectedVertex = null;
+	}
+
+	/** Polygon → axis-aligned edges only (a rect when 4 vertices remain). */
+	orthogonalize(id: string): boolean {
+		const s = this.bp.segments.find((x) => x.id === id);
+		if (!s || s.shape === 'rect') return false;
+		const pts = orthogonalize(s.points);
+		if (!pts) return false;
+		this.updateSegment(id, (seg) => {
+			if (pts.length === 4) {
+				const b = bounds(pts);
+				return refitLabel(seg, { ...seg, shape: 'rect', points: [[b.x, b.y], [b.x + b.w, b.y + b.h]] });
+			}
+			return refitLabel(seg, { ...seg, points: pts });
+		});
+		this.selectedVertex = null;
+		return true;
+	}
+
+	// ---- walls
+
+	addWall(a: Point, b: Point): Wall {
+		const wall: Wall = { id: uid('w'), a, b };
+		this.checkpoint();
+		this.bp = { ...this.bp, walls: [...this.bp.walls, wall] };
+		return wall;
+	}
+
+	/** Immutable wall update, live (no checkpoint). */
+	patchWall(id: string, fn: (w: Wall) => Wall) {
+		this.bp = { ...this.bp, walls: this.bp.walls.map((w) => (w.id === id ? fn(w) : w)) };
+	}
+
+	updateWall(id: string, fn: (w: Wall) => Wall, key?: string) {
+		this.checkpoint(key);
+		this.patchWall(id, fn);
+	}
+
+	deleteWall(id: string) {
+		this.checkpoint();
+		this.bp = { ...this.bp, walls: this.bp.walls.filter((w) => w.id !== id) };
+		this.#fixSelection();
+	}
+
+	// ---- labelled rooms (outlines with a label)
+
+	patchRoom(id: string, fn: (o: Outline) => Outline) {
+		this.bp = { ...this.bp, outlines: this.bp.outlines.map((o) => (o.id === id ? fn(o) : o)) };
+	}
+
+	updateRoom(id: string, fn: (o: Outline) => Outline, key?: string) {
+		this.checkpoint(key);
+		this.patchRoom(id, fn);
+	}
+
+	renameRoom(id: string, label: string, key?: string) {
+		const name = label.trim().slice(0, 60);
+		if (!name) return;
+		this.updateRoom(id, (o) => ({ ...o, label: name }), key);
+	}
+
+	deleteRoom(id: string) {
+		this.checkpoint();
+		this.bp = { ...this.bp, outlines: this.bp.outlines.filter((o) => o.id !== id) };
+		this.#fixSelection();
 	}
 
 	/** Confirm a segment's count; the manager's confirmation also clears the AI confidence marker. */
@@ -171,4 +280,12 @@ export function refitLabel(before: Segment, after: Segment): Segment {
 	const fx = a.w ? (before.labelPos[0] - a.x) / a.w : 0.5;
 	const fy = a.h ? (before.labelPos[1] - a.y) / a.h : 0.5;
 	return { ...after, labelPos: [b.x + fx * b.w, b.y + fy * b.h] };
+}
+
+export function translateWall(w: Wall, dx: number, dy: number): Wall {
+	return { ...w, a: [w.a[0] + dx, w.a[1] + dy], b: [w.b[0] + dx, w.b[1] + dy] };
+}
+
+export function translateRoom(o: Outline, dx: number, dy: number): Outline {
+	return { ...o, points: o.points.map(([x, y]) => [x + dx, y + dy] as Point) };
 }
