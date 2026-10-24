@@ -86,11 +86,12 @@
 			const res = await blueprints.analyze(eventId, {
 				imageRef,
 				candidates: run.candidates,
-				outlines: run.outlines
+				outlines: run.outlines,
+				canvas: run.canvas
 			});
 			analyze = res.source === 'ai' ? 'done' : 'warn';
 			warning = res.source === 'fallback' ? (res.warning ?? 'AI labelling was unavailable; areas are unnamed.') : '';
-			draft = fitDraft(res.blueprint, run.canvas, current.titleBlock);
+			draft = fitDraft(res.blueprint, current.titleBlock);
 		} catch (e) {
 			analyze = 'warn';
 			warning = `AI labelling failed (${errorMessage(e)}); candidate polygons were added as unnamed areas.`;

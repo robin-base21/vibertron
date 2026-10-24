@@ -94,7 +94,7 @@ export function blueprintRoutes(app: App): Routes {
 				const result = await analyzeFloorplan(
 					{ apiKey: app.env.openrouterApiKey, model: app.env.openrouterModel, fetch: app.fetch },
 					{ bytes, contentType: row.contentType },
-					{ candidates: body.candidates, outlines: body.outlines, imageRef: row.ref, project: event.name }
+					{ candidates: body.candidates, outlines: body.outlines, imageRef: row.ref, project: event.name, canvas: body.canvas }
 				);
 				return json(result);
 			}

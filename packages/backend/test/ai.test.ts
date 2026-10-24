@@ -112,6 +112,31 @@ describe('openrouter + analyze', () => {
 		expect(nokey.calls).toHaveLength(0);
 	});
 
+	test('builds on a non-square canvas: prompt in model space, rects scaled back', async () => {
+		const wide: BuildInput = { ...input, canvas: { w: 1000, h: 500 }, candidates: [square(100, 50, 200)] };
+		const reply = JSON.stringify({
+			areas: [
+				area({ polygonIndex: 0, name: 'Hall' }),
+				area({ name: 'Annex', rect: { x: 500, y: 200, w: 300, h: 400 } }),
+				area({ name: 'Edge', rect: { x: 900, y: 900, w: 200, h: 200 } })
+			]
+		});
+		const { fn, calls } = mockFetch(reply);
+		const result = await analyzeFloorplan(cfg(fn), { bytes: PNG, contentType: 'image/png' }, wide);
+		// candidates go to the model stretched to the 0..1000 square
+		expect(calls[0].body.messages[1].content[0].text).toContain('0: [[100,100],[300,100],[300,500],[100,500]]');
+		const bp = result.blueprint;
+		expect(bp.canvas).toEqual({ w: 1000, h: 500 });
+		const [hall, annex, edge] = bp.segments;
+		// polygons stay in canvas coordinates
+		expect(hall!.points).toEqual(wide.candidates[0]!);
+		// rects scale from the square onto the canvas and clamp to it
+		expect(annex!.points).toEqual([[500, 100], [800, 300]]);
+		expect(annex!.labelPos).toEqual([650, 200]);
+		expect(edge!.points).toEqual([[900, 450], [1000, 500]]);
+		expect(fallbackBlueprint(wide).canvas).toEqual({ w: 1000, h: 500 });
+	});
+
 	test('pure mapping helpers', () => {
 		expect(fallbackBlueprint({ ...input, candidates: [] }).segments).toEqual([]);
 		// the same polygon is never used twice

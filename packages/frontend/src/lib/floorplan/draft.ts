@@ -1,4 +1,4 @@
-import type { Blueprint, Point, Segment } from 'common';
+import type { Blueprint, Point } from 'common';
 
 // Turning contour/analyze output into a draft blueprint for the editor. Pure, unit-tested.
 
@@ -14,26 +14,19 @@ function centroidOf(points: Point[]): Point {
 }
 
 /**
- * Fit the server's draft onto the aspect-correct canvas from the contour pass.
- * Candidate polygons and outlines are already in canvas coordinates; AI-proposed rects use a
- * stretched 0..1000 square, so their short axis is rescaled. Keeps the current title block.
+ * Prepare the server's draft for the editor: keep the current title block and clamp all geometry
+ * to the canvas (the server builds on the canvas we send with the analyze request).
  */
-export function fitDraft(draft: Blueprint, canvas: Blueprint['canvas'], titleBlock: Blueprint['titleBlock']): Blueprint {
-	const sx = canvas.w / 1000;
-	const sy = canvas.h / 1000;
-	const segments = draft.segments.map((s): Segment => {
-		const points =
-			s.shape === 'rect'
-				? s.points.map((p) => clampPt([p[0] * sx, p[1] * sy], canvas))
-				: s.points.map((p) => clampPt(p, canvas));
-		const labelPos = s.shape === 'rect' ? centroidOf(points) : clampPt(s.labelPos, canvas);
-		return { ...s, points, labelPos };
-	});
+export function fitDraft(draft: Blueprint, titleBlock: Blueprint['titleBlock']): Blueprint {
+	const canvas = draft.canvas;
 	return {
 		...draft,
-		canvas,
 		outlines: draft.outlines.map((o) => ({ ...o, points: o.points.map((p) => clampPt(p, canvas)) })),
-		segments,
+		segments: draft.segments.map((s) => ({
+			...s,
+			points: s.points.map((p) => clampPt(p, canvas)),
+			labelPos: clampPt(s.labelPos, canvas)
+		})),
 		titleBlock
 	};
 }

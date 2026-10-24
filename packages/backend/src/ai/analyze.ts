@@ -57,7 +57,7 @@ export const analyzeJsonSchema = {
 } as const;
 
 const SYSTEM_PROMPT = `You label venue floorplans for a hackathon seating tool.
-You get a floorplan image and a list of candidate room polygons detected by computer vision, in a normalized 0..1000 coordinate system (x right, y down, image scaled to fill the canvas).
+You get a floorplan image and a list of candidate room polygons detected by computer vision, in a normalized 0..1000 coordinate system on both axes (x right, y down, image stretched to fill the square).
 For every distinct area, return an entry:
 - polygonIndex: the index of the matching candidate polygon, or null if no candidate matches.
 - name: the label written on the plan if any, else a short descriptive name ("Main Hall", "Kitchen").
@@ -86,17 +86,27 @@ export function buildPrompt(imageUrl: string, candidates: Point[][]) {
 }
 
 export interface BuildInput {
+	/** Candidate polygons in canvas coordinates. */
 	candidates: Point[][];
 	outlines: Point[][];
 	imageRef: string;
 	project: string;
 	date?: string;
+	/** Canvas the candidates/outlines use; defaults to 1000x1000. */
+	canvas?: { w: number; h: number };
+}
+
+const canvasOf = (input: BuildInput) => input.canvas ?? { w: 1000, h: 1000 };
+
+/** Canvas coordinates -> the square 0..1000 space the model works in. */
+export function toModelSpace(points: Point[], canvas: { w: number; h: number }): Point[] {
+	return points.map(([x, y]) => [(x * 1000) / canvas.w, (y * 1000) / canvas.h]);
 }
 
 function baseBlueprint(input: BuildInput): Blueprint {
 	return {
 		schemaVersion: 1,
-		canvas: { w: 1000, h: 1000 },
+		canvas: canvasOf(input),
 		underlay: { imageRef: input.imageRef, opacity: 0.35 },
 		outlines: input.outlines.map(
 			(points, i): Outline => ({ id: `o${i + 1}`, kind: 'wall', points: points.map(round), closed: points.length > 2 })
@@ -132,10 +142,13 @@ export function blueprintFromAreas(areas: AnalyzedArea[], input: BuildInput): Bl
 			shape = 'polygon';
 			points = input.candidates[idx]!.map(round);
 		} else if (a.rect) {
-			const x = clamp(a.rect.x, 0, 1000);
-			const y = clamp(a.rect.y, 0, 1000);
-			const x2 = clamp(a.rect.x + a.rect.w, 0, 1000);
-			const y2 = clamp(a.rect.y + a.rect.h, 0, 1000);
+			// The model answers in the square 0..1000 space; scale onto the canvas.
+			const sx = bp.canvas.w / 1000;
+			const sy = bp.canvas.h / 1000;
+			const x = clamp(a.rect.x * sx, 0, bp.canvas.w);
+			const y = clamp(a.rect.y * sy, 0, bp.canvas.h);
+			const x2 = clamp((a.rect.x + a.rect.w) * sx, 0, bp.canvas.w);
+			const y2 = clamp((a.rect.y + a.rect.h) * sy, 0, bp.canvas.h);
 			if (x2 - x < 1 || y2 - y < 1) continue;
 			shape = 'rect';
 			points = [round([x, y]), round([x2, y2])];
@@ -162,7 +175,10 @@ export async function analyzeFloorplan(
 	}
 	try {
 		const reply = await structuredCompletion(cfg, {
-			messages: buildPrompt(imageDataUrl(image.bytes, image.contentType), input.candidates),
+			messages: buildPrompt(
+				imageDataUrl(image.bytes, image.contentType),
+				input.candidates.map((p) => toModelSpace(p, canvasOf(input)))
+			),
 			schemaName: 'floorplan_areas',
 			jsonSchema: analyzeJsonSchema as unknown as Record<string, unknown>,
 			validate: AnalyzeReply

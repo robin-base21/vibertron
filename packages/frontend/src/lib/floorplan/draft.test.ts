@@ -5,23 +5,24 @@ import { fitDraft, localDraft } from './draft';
 
 const title = { project: 'P', date: '2026-10-24', rev: 'C' };
 
-test('fitDraft rescales AI rects to the canvas, keeps polygons, takes the title block', () => {
+test('fitDraft takes the title block and clamps geometry to the canvas', () => {
 	const draft: Blueprint = {
 		...emptyBlueprint('Server'),
+		canvas: { w: 1000, h: 625 },
 		underlay: { imageRef: 'ref', opacity: 0.35 },
 		outlines: [{ id: 'o1', kind: 'wall', points: [[0, 0], [1000, 700]], closed: false }],
 		segments: [
-			{ id: 's1', name: 'Hall', shape: 'rect', points: [[100, 200], [500, 600]], labelPos: [300, 400], stations: { count: 8, layout: 'grid', confirmed: false }, confidence: 0.9 },
-			{ id: 's2', name: 'Lab', shape: 'polygon', points: [[600, 100], [900, 100], [900, 400]], labelPos: [750, 250], stations: { count: 4, layout: 'grid', confirmed: false } }
+			{ id: 's1', name: 'Hall', shape: 'rect', points: [[100, 125], [500, 375]], labelPos: [300, 250], stations: { count: 8, layout: 'grid', confirmed: false }, confidence: 0.9 },
+			{ id: 's2', name: 'Lab', shape: 'polygon', points: [[600, 100], [900, 100], [900, 640]], labelPos: [750, 630], stations: { count: 4, layout: 'grid', confirmed: false } }
 		]
 	};
-	const out = fitDraft(draft, { w: 1000, h: 625 }, title);
+	const out = fitDraft(draft, title);
 	expect(out.canvas).toEqual({ w: 1000, h: 625 });
 	expect(out.titleBlock).toEqual(title);
-	expect(out.segments[0]!.points).toEqual([[100, 125], [500, 375]]);
-	expect(out.segments[0]!.labelPos).toEqual([300, 250]);
+	expect(out.segments[0]!.points).toEqual(draft.segments[0]!.points);
 	expect(out.segments[0]!.confidence).toBe(0.9);
-	expect(out.segments[1]!.points).toEqual(draft.segments[1]!.points);
+	expect(out.segments[1]!.points[2]).toEqual([900, 625]);
+	expect(out.segments[1]!.labelPos).toEqual([750, 625]);
 	expect(out.outlines[0]!.points[1]).toEqual([1000, 625]);
 	expect(out.underlay?.imageRef).toBe('ref');
 	expect(Blueprint.safeParse(out).success).toBe(true);

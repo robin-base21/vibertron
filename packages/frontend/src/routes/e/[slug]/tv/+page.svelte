@@ -3,7 +3,7 @@
 	import Blueprint from '$lib/blueprint/Blueprint.svelte';
 	import BigCountdown from '$lib/blueprint/live/BigCountdown.svelte';
 	import MessageFeed from '$lib/blueprint/live/MessageFeed.svelte';
-	import TeamList from '$lib/blueprint/live/TeamList.svelte';
+	import PagedTeamList from '$lib/blueprint/live/PagedTeamList.svelte';
 	import { LiveEvent, livePhase } from '$lib/blueprint/live.svelte';
 	import { startFixture } from '$lib/blueprint/liveFixture';
 	import { clock } from '$lib/stores/clock.svelte';
@@ -18,7 +18,7 @@
 	// Subscription setup only; untracked so WS reconnects don't tear it down and redo it.
 	$effect(() => {
 		const fixture = data.fixture;
-		return untrack(() => (fixture ? startFixture(liveEvent, fixture) : liveEvent.start()));
+		return untrack(() => (fixture ? startFixture(liveEvent, fixture, data.fixtureTeams) : liveEvent.start()));
 	});
 
 	const snap = $derived(liveEvent.snapshot);
@@ -76,7 +76,7 @@
 				</div>
 				<section class="flex min-h-0 flex-[1.1] flex-col gap-[0.4em] overflow-hidden">
 					<h2 class="bp-label text-[0.8em] opacity-60">Teams · <span class="font-mono">{teams.length}</span></h2>
-					<TeamList {teams} blueprint={snap.blueprint} flashTeamId={liveEvent.flashTeamId} dense={teams.length > 5} class="min-h-0 overflow-hidden text-[1.1em]" />
+					<PagedTeamList {teams} blueprint={snap.blueprint} flashTeamId={liveEvent.flashTeamId} dense={teams.length > 5} class="flex-1 text-[1.1em]" />
 				</section>
 				<section class="flex min-h-0 flex-1 flex-col gap-[0.4em] overflow-hidden">
 					<h2 class="bp-label text-[0.8em] opacity-60">Messages</h2>
@@ -89,14 +89,7 @@
 				</div>
 				<section class="flex min-h-0 flex-1 flex-col gap-[0.4em] overflow-hidden">
 					<h2 class="bp-label text-[0.8em] opacity-60">Final codenames · <span class="font-mono">{named.length}</span></h2>
-					<ul class="flex min-h-0 flex-col overflow-hidden">
-						{#each teams as t (t.id)}
-							<li class="flex items-baseline gap-[0.6em] border-b border-bp-line/20 py-[0.3em]">
-								<span class="bp-label truncate text-[1.5em] font-semibold">{t.codename ?? t.name}</span>
-								<span class="bp-label ml-auto shrink-0 text-[0.7em] opacity-60">{t.name} · {t.members.length}×</span>
-							</li>
-						{/each}
-					</ul>
+					<PagedTeamList {teams} blueprint={snap.blueprint} dense={teams.length > 5} class="flex-1 text-[1.4em]" />
 				</section>
 			{/if}
 

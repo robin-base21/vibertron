@@ -268,7 +268,9 @@ export const AnalyzeBody = z.object({
 	/** Candidate room polygons from the client-side OpenCV pass, normalized 0..1000. */
 	candidates: z.array(z.array(Point).min(3)).max(80),
 	/** Wall/room outlines to keep as decorative geometry. */
-	outlines: z.array(z.array(Point).min(2)).max(400).default([])
+	outlines: z.array(z.array(Point).min(2)).max(400).default([]),
+	/** Canvas the candidates/outlines are normalized to (long side 1000, image aspect ratio). Defaults to 1000x1000. */
+	canvas: z.object({ w: z.number().positive().max(10_000), h: z.number().positive().max(10_000) }).optional()
 });
 export type AnalyzeBody = z.infer<typeof AnalyzeBody>;
 

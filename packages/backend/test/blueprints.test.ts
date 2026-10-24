@@ -83,5 +83,10 @@ test('analyze uses AI and returns a draft blueprint', async () => {
 	expect(aiCalls).toBe(1);
 	expect(r.body.blueprint.segments[0]).toMatchObject({ name: 'Main Hall', stations: { count: 10, confirmed: false } });
 	expect(r.body.blueprint.underlay.imageRef).toBe(imageRef);
+	expect(r.body.blueprint.canvas).toEqual({ w: 1000, h: 1000 });
+	const wide = await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { imageRef, candidates, canvas: { w: 1000, h: 625 } });
+	expect(wide.status).toBe(200);
+	expect(wide.body.blueprint.canvas).toEqual({ w: 1000, h: 625 });
+	expect((await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { imageRef, candidates, canvas: { w: 0, h: 5 } })).status).toBe(400);
 	expect((await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { imageRef: 'f'.repeat(32), candidates })).status).toBe(404);
 });
