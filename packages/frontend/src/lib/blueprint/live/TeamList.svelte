@@ -19,7 +19,7 @@
 	{#each teams as t (t.id)}
 		<li
 			class={[
-				'grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-b border-bp-line/20 py-[0.35em] transition-colors duration-700',
+				'grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 border-b border-bp-line/20 px-[0.3em] py-[0.35em] transition-colors duration-700',
 				flashTeamId === t.id && 'bg-bp-accent/40'
 			]}
 		>
