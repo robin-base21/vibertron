@@ -1,5 +1,5 @@
-import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
-import { db } from './index';
+import { env } from '../env';
+import { migrateDb, openDb } from './index';
 
-migrate(db, { migrationsFolder: `${import.meta.dir}/../../drizzle` });
+migrateDb(openDb(env.databasePath));
 console.log('Migrations applied');
