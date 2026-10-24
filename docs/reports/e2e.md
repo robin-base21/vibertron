@@ -26,7 +26,7 @@
 `/e/<slug>/live` still renders fixture blueprints, not event data. The test checks it only if the page shows the event name; otherwise it records a `skip` annotation. It will start asserting automatically once the viewer page is real.
 
 ## Verification
-- `bun run test:e2e` passed 3 times locally: about 37–43 s per test, about 50 s total including server boot.
+- The final spec passed twice in a row locally (direct `playwright test`, then `bun run test:e2e`): about 37–43 s per test, about 50 s total including server boot. An earlier version without the TV checks passed once too.
 - `bun test` (44 pass), `bun run typecheck`, `bun run check`, and `tsc -p packages/e2e` are clean.
 - Ports 4000 and 4001 are free after the run.
 
