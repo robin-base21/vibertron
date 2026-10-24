@@ -115,15 +115,53 @@ Branch `ws/blueprint`. All five milestones are done. main was merged in four tim
     - End shows "TIME'S UP" on both.
 - Screenshots were checked at 1920×1080 (TV in all three states), 1400 wide (editor, import) and 390 wide (public page on a phone).
 
+## Follow-ups (coordinator round 2)
+1. **Analyze canvas.**
+   - The client sends `canvas` with the analyze request.
+   - `backend/src/ai/analyze.ts` builds the draft (including the fallback draft) on that canvas.
+   - The prompt and AI rects use a normalized 0..1000 square. Candidates are converted into it for the prompt, and rects are scaled back onto the canvas and clamped.
+   - The analyze route passes `body.canvas` through.
+   - New tests:
+     - `test/ai.test.ts`: on a non-square canvas, the prompt uses square coordinates, polygons stay in canvas coordinates, and rects are scaled and clamped.
+     - `test/blueprints.test.ts`: the canvas is passed through the route, and an invalid canvas returns 400.
+   - `fitDraft` no longer rescales rects. It only clamps to the canvas and keeps the editor's title block.
+2. **TV team list pagination.** `PagedTeamList.svelte` measures how many rows fit, rotates pages every 8 s with a fade and shows a `1/5` indicator. It jumps to a team's page when that team's codename changes, and is used on both the live and the ended screens. Dev preview: `?fixture=live&teams=40`.
+3. **Favicon.** `static/favicon.svg` is linked from `app.html`, so routes without chrome no longer request `/favicon.ico` before the client renders.
+4. **Label band.**
+   - `stationPositions` takes a `top` inset (common change below). The renderer reserves a band at the top of each segment, sized from the label font (at most 45% of the segment height), and draws the name and count there, so the label never covers a station.
+   - `labelPos.x` still sets the horizontal position (clamped to the segment), so dragging a label in the editor now slides it along the band. `labelPos.y` is kept in the data but no longer used for drawing.
+   - Station positions use the same band in every view, so attendee highlights, team boxes and the TV agree.
+5. **Highlight weight.**
+   - An attendee's highlighted segment now gets a 10% accent tint.
+   - The highlighted station gets a solid accent disc plus a pulsing accent ring, both under the white strokes.
+   - The editor's selection keeps the 40% accent from the spec.
+   - The TV codename flash on the blueprint is 12%.
+6. **Confirmed means confident.** Segments with `stations.confirmed = true` never render dashed or with the `?` badge, even when `confidence` is set.
+7. **Editor lock.** When the event is `live` or `ended`, the editor shows "Blueprint locked while the event is live/over" in place of the unconfirmed banner. It then:
+   - renders the plain read-only renderer instead of the editing canvas;
+   - disables tools, undo/redo, snap, the underlay slider, import and save;
+   - disables every control in the side panel through a disabled `<fieldset>`;
+   - ignores keyboard shortcuts.
+
+   Invert and SVG export still work. In dev, `?fixture&status=live` previews it.
+
+Verified after these changes:
+- `bun test`: 47 pass. Floorplan tests: 9 pass. `typecheck` and `check` are clean.
+- `bun run test:e2e` passes, run on ports 4210/4211 to stay off other workers' ports.
+- My editor, import and live scripts were re-run and pass. The import draft now comes back from the backend on a 1000×625 canvas.
+- New visual checks:
+  - With 40 fixture teams, the TV team list rotates from page 1/5 to 2/5 after 8 s.
+  - The locked editor shows the notice, with Save and the tools disabled and SVG export enabled.
+  - A real attendee page shows the faint segment tint and the strong station ring.
+  - On the TV, a confirmed segment with confidence 0.3 has no `?` badge, and the label band clears the first row of stations.
+
 ## Decisions and known gaps
-- **Analyze canvas mismatch:** the backend's analyze treats coordinates as a stretched 1000×1000 square. AI-proposed rects come back in that space, while candidates and outlines are already in the aspect-correct canvas. `fitDraft` rescales the short axis of rects only. A cleaner fix would be to send `canvas` in `AnalyzeBody` and let the backend build on it.
 - Confirming a segment (the toggle or Confirm all) clears its AI `confidence`, so the dashed outline and `?` badge go away once the manager has validated it.
 - New hand-drawn segments start as `Area N` with 4 stations, unconfirmed.
 - The first time opencv is imported in `vite dev`, Vite re-optimizes dependencies and reloads the page once. Adding `optimizeDeps: { include: ['@techstark/opencv-js'] }` to `vite.config.ts`, which I don't own, would avoid it. Production is unaffected.
 - The worker imports opencv statically and is only spawned on demand, so it stays out of the main bundle. Vite's default iife worker format can't code-split a dynamic import inside a worker.
 - The 20 s contour timeout includes downloading opencv on a cold cache. On a very slow connection the contour pass may time out the first time, and the import still continues with AI-only or manual drawing.
 - The contour heuristic traces text and furniture as outlines too (they're decorative). Room candidates on real photos will need tuning; the manager remains the accuracy layer.
-- The TV team list cuts off rather than scrolls when there are more than about 14 teams.
 - Floorplan unit tests aren't in the root `bun test` script, which only covers common and backend and which I don't own. Run them with `bun test packages/frontend/src/lib/floorplan`, or the coordinator can add the path.
 - `src/lib/blueprint/api.ts` only holds `saveBlueprint` (409 handling) and `underlayUrl`. Everything else uses the typed wrappers in `$lib/api`.
 - The app worker's `BlueprintView.svelte` loads `$lib/blueprint/Blueprint.svelte` through its glob, so attendee pages now get the real renderer.
@@ -133,4 +171,6 @@ Branch `ws/blueprint`. All five milestones are done. main was merged in four tim
 - `devDependencies`: added `@types/bun`, so the floorplan `*.test.ts` files type-check under svelte-check. They also carry `/// <reference types="bun" />`.
 
 ## COMMON CHANGES
-None.
+Both additive, both made in the follow-ups at the coordinator's request.
+- `api.ts`: optional `AnalyzeBody.canvas: { w, h }` (each positive, at most 10 000). It defaults to 1000×1000 on the backend, so older clients are unaffected.
+- `blueprint.ts`: `stationPositions(segment, pad = 12, top = 0)`. The new `top` reserves a band at the top of the segment; the default keeps the old behaviour. New test file: `blueprint.test.ts`.
