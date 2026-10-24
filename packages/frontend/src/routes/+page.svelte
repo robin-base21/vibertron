@@ -7,8 +7,8 @@
 		<p class="bp-label text-sm opacity-60">Hackathon companion</p>
 		<h1 class="bp-label text-6xl font-semibold sm:text-8xl">Vibertron</h1>
 		<p class="max-w-xl font-mono text-sm leading-relaxed opacity-70">
-			Scan the code at the venue, pair up with a friend, and get your team and workstation on a
-			live blueprint of the room when the event launches.
+			Scan the code at the venue, pair up with a friend, and get your team and workstation on a live
+			blueprint of the room when the event launches.
 		</p>
 	</section>
 
@@ -16,7 +16,7 @@
 		<section class="flex flex-col gap-3">
 			<h2 class="bp-label text-sm opacity-60">Your events</h2>
 			{#each session.me.participations as p (p.participantId)}
-				<a href="/e/{p.slug}" class="btn btn-primary bp-label btn-lg justify-between">
+				<a href="/e/{p.slug}" class="btn justify-between bp-label btn-lg btn-primary">
 					<span>Go to event</span>
 					<span class="font-mono text-sm normal-case">{p.slug}</span>
 				</a>
@@ -34,7 +34,8 @@
 		</section>
 		<div class="flex items-center gap-4">
 			<a href="/login" class="btn btn-outline bp-label">Organiser sign in</a>
-			<span class="font-mono text-xs opacity-50">Attendees join by scanning the venue QR code.</span>
+			<span class="font-mono text-xs opacity-50">Attendees join by scanning the venue QR code.</span
+			>
 		</div>
 	{/if}
 </main>

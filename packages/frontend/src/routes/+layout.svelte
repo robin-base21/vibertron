@@ -43,29 +43,40 @@
 	{#if !bare}
 		<header class="border-b border-bp-line/40">
 			<nav class="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
-				<a href="/" class="bp-label mr-auto text-xl font-semibold tracking-[0.2em]">Vibertron</a>
+				<a href="/" class="mr-auto bp-label text-xl font-semibold tracking-[0.2em]">Vibertron</a>
 				{#if session.is('admin')}
-					<a href="/admin" class={[navLink, active('/admin') && 'underline underline-offset-4 opacity-100']}>
+					<a
+						href="/admin"
+						class={[navLink, active('/admin') && 'underline underline-offset-4 opacity-100']}
+					>
 						Admin
 					</a>
 				{/if}
 				{#if session.is('manager')}
-					<a href="/manage" class={[navLink, active('/manage') && 'underline underline-offset-4 opacity-100']}>
+					<a
+						href="/manage"
+						class={[navLink, active('/manage') && 'underline underline-offset-4 opacity-100']}
+					>
 						Events
 					</a>
 				{:else if firstEvent}
-					<a href="/e/{firstEvent.slug}" class={[navLink, active('/e/') && 'underline underline-offset-4 opacity-100']}>
+					<a
+						href="/e/{firstEvent.slug}"
+						class={[navLink, active('/e/') && 'underline underline-offset-4 opacity-100']}
+					>
 						My event
 					</a>
 				{/if}
 				{#if session.user}
 					<!-- Attendee sessions are name-only and can't be recovered, so no sign out for them. -->
-					<span class="hidden font-mono text-xs opacity-50 sm:inline">{session.user.displayName}</span>
+					<span class="hidden font-mono text-xs opacity-50 sm:inline"
+						>{session.user.displayName}</span
+					>
 					{#if session.is('manager')}
-						<button class="btn btn-outline btn-xs bp-label" onclick={signOut}>Sign out</button>
+						<button class="btn btn-outline bp-label btn-xs" onclick={signOut}>Sign out</button>
 					{/if}
 				{:else if page.url.pathname !== '/login'}
-					<a href="/login" class="btn btn-outline btn-xs bp-label">Sign in</a>
+					<a href="/login" class="btn btn-outline bp-label btn-xs">Sign in</a>
 				{/if}
 			</nav>
 		</header>

@@ -33,7 +33,9 @@
 				error = errorMessage(err);
 			}
 			if (stopped) return;
-			const untilRollover = code ? code.windowStart + code.windowMs - (Date.now() + offset) + 250 : 5000;
+			const untilRollover = code
+				? code.windowStart + code.windowMs - (Date.now() + offset) + 250
+				: 5000;
 			timer = setTimeout(poll, Math.max(250, Math.min(untilRollover, 5000)));
 		}
 		poll();
@@ -49,10 +51,12 @@
 
 <svelte:head><title>Join {data.event.name}</title></svelte:head>
 
-<main class="fixed inset-0 flex flex-col items-center justify-center gap-[3vh] bg-bp-bg p-6 text-bp-line">
+<main
+	class="fixed inset-0 flex flex-col items-center justify-center gap-[3vh] bg-bp-bg p-6 text-bp-line"
+>
 	<a
 		href="/manage/{data.event.id}"
-		class="bp-label absolute top-4 left-4 text-xs opacity-30 hover:opacity-100"
+		class="absolute top-4 left-4 bp-label text-xs opacity-30 hover:opacity-100"
 	>
 		← Back
 	</a>
