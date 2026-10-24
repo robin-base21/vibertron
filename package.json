@@ -1,0 +1,15 @@
+{
+  "name": "vibertron",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "bun run --filter backend dev & bun run --filter frontend dev",
+    "dev:backend": "bun run --filter backend dev",
+    "dev:frontend": "bun run --filter frontend dev",
+    "test": "bun test packages/common packages/backend",
+    "check": "bun run --filter frontend check",
+    "db:generate": "bun run --filter backend db:generate",
+    "db:migrate": "bun run --filter backend db:migrate"
+  }
+}

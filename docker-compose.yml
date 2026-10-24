@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
+    container_name: vibertron-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=/data/vibertron.sqlite
+      - UPLOAD_DIR=/data/uploads
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+    volumes:
+      - vibertron-data:/data
+    restart: unless-stopped
+    networks:
+      - vibertron-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+    container_name: vibertron-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PUBLIC_API_URL=http://localhost:3001
+      - PUBLIC_WS_URL=ws://localhost:3001/ws
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - vibertron-network
+
+volumes:
+  vibertron-data:
+
+networks:
+  vibertron-network:
+    driver: bridge

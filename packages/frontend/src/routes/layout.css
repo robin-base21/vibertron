@@ -1,0 +1,62 @@
+@import 'tailwindcss';
+@plugin "daisyui";
+
+/* White-on-black blueprint theme. Keep it two-tone plus one accent (selection). */
+@plugin "daisyui/theme" {
+  name: "blueprint";
+  default: true;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: #0a0a0a;
+  --color-base-200: #111111;
+  --color-base-300: #1a1a1a;
+  --color-base-content: #f5f5f5;
+  --color-primary: #f5f5f5;
+  --color-primary-content: #0a0a0a;
+  --color-secondary: #a3a3a3;
+  --color-secondary-content: #0a0a0a;
+  --color-accent: #38bdf8;
+  --color-accent-content: #0a0a0a;
+  --color-neutral: #262626;
+  --color-neutral-content: #f5f5f5;
+  --color-info: #38bdf8;
+  --color-info-content: #0a0a0a;
+  --color-success: #4ade80;
+  --color-success-content: #0a0a0a;
+  --color-warning: #facc15;
+  --color-warning-content: #0a0a0a;
+  --color-error: #f87171;
+  --color-error-content: #0a0a0a;
+  --radius-selector: 0;
+  --radius-field: 0;
+  --radius-box: 0;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --color-bp-bg: #0a0a0a;
+  --color-bp-line: #f5f5f5;
+  --color-bp-accent: #38bdf8;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-bp-bg);
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 10px 10px;
+  }
+}
+
+@utility bp-label {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
