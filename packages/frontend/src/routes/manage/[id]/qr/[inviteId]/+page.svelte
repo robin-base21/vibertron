@@ -7,7 +7,7 @@
 
 	let { data } = $props();
 
-	let code: JoinCodeDTO | null = $state(null);
+	let code = $state<JoinCodeDTO | null>(null);
 	/** serverTime - Date.now() from the last code response. */
 	let offset = $state(0);
 	let now = $state(Date.now());
