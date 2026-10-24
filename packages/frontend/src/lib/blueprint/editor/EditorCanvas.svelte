@@ -278,9 +278,12 @@
 	>
 		{#snippet overlay(ctx)}
 			{@const hs = 7 * ctx.u}
+			<!-- Oversized so drags can start in the letterbox margin; points are clamped to the canvas. -->
 			<rect
-				width={bp.canvas.w}
-				height={bp.canvas.h}
+				x={-bp.canvas.w * 10}
+				y={-bp.canvas.h * 10}
+				width={bp.canvas.w * 21}
+				height={bp.canvas.h * 21}
 				fill="transparent"
 				onpointerdown={onBackgroundDown}
 				role="presentation"
