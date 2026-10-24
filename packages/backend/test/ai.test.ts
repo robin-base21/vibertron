@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import type { Point } from 'common';
-import { analyzeFloorplan, blueprintFromAreas, fallbackBlueprint, type BuildInput } from '../src/ai/analyze';
+import { analyzeFloorplan, fallbackBlueprint } from '../src/ai/analyze';
+import { blueprintFromAreas } from '../src/ai/analyze-v1';
+import type { BuildInput } from '../src/ai/draft';
 import { OPENROUTER_URL, extractJson } from '../src/ai/openrouter';
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]);
@@ -10,7 +12,8 @@ const square = (x: number, y: number, s: number): Point[] => [
 	[x + s, y + s],
 	[x, y + s]
 ];
-const input: BuildInput = {
+// Legacy (v1) requests: candidates, no rooms.
+const input = {
 	candidates: [square(100, 100, 200), square(400, 100, 200), square(700, 700, 100)],
 	outlines: [
 		[
@@ -21,7 +24,7 @@ const input: BuildInput = {
 	imageRef: 'a'.repeat(32),
 	project: 'Test Event',
 	date: '2026-10-24'
-};
+} satisfies BuildInput;
 
 /** Mock fetch returning the given assistant contents in order; records request bodies. */
 function mockFetch(...replies: (string | { status: number; body: string })[]) {
@@ -113,7 +116,7 @@ describe('openrouter + analyze', () => {
 	});
 
 	test('builds on a non-square canvas: prompt in model space, rects scaled back', async () => {
-		const wide: BuildInput = { ...input, canvas: { w: 1000, h: 500 }, candidates: [square(100, 50, 200)] };
+		const wide = { ...input, canvas: { w: 1000, h: 500 }, candidates: [square(100, 50, 200)] };
 		const reply = JSON.stringify({
 			areas: [
 				area({ polygonIndex: 0, name: 'Hall' }),

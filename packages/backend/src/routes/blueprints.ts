@@ -25,6 +25,14 @@ export function blueprintRoutes(app: App): Routes {
 	const { db } = app;
 	const uploadPath = (ref: string) => join(app.env.uploadDir, ref);
 
+	/** An upload belonging to this event (or to no event); 400 for a malformed ref, 404 otherwise. */
+	const eventUpload = (eventId: string, ref: string, field: string) => {
+		if (!REF_RE.test(ref)) throw badRequest(`Invalid ${field}`);
+		const row = db.select().from(uploads).where(eq(uploads.ref, ref)).get();
+		if (!row || (row.eventId && row.eventId !== eventId)) throw notFound(`Image not found (${field})`);
+		return row;
+	};
+
 	return {
 		'/api/events/:id/blueprint': {
 			GET: (req) => {
@@ -87,14 +95,24 @@ export function blueprintRoutes(app: App): Routes {
 			POST: async (req) => {
 				const { event } = requireEventManager(app, req, req.params.id!);
 				const body = await parseBody(req, AnalyzeBody);
-				if (!REF_RE.test(body.imageRef)) throw badRequest('Invalid imageRef');
-				const row = db.select().from(uploads).where(eq(uploads.ref, body.imageRef)).get();
-				if (!row || (row.eventId && row.eventId !== event.id)) throw notFound('Image not found');
-				const bytes = new Uint8Array(await Bun.file(uploadPath(row.ref)).arrayBuffer());
+				const original = eventUpload(event.id, body.imageRef, 'imageRef');
+				const marked = body.markedImageRef ? eventUpload(event.id, body.markedImageRef, 'markedImageRef') : null;
+				// The model sees the numbered (marked) image when there is one; the original stays the underlay.
+				const shown = marked ?? original;
+				const bytes = new Uint8Array(await Bun.file(uploadPath(shown.ref)).arrayBuffer());
 				const result = await analyzeFloorplan(
 					{ apiKey: app.env.openrouterApiKey, model: app.env.openrouterModel, fetch: app.fetch },
-					{ bytes, contentType: row.contentType },
-					{ candidates: body.candidates, outlines: body.outlines, imageRef: row.ref, project: event.name, canvas: body.canvas }
+					{ bytes, contentType: shown.contentType },
+					{
+						imageRef: original.ref,
+						project: event.name,
+						canvas: body.canvas,
+						crop: body.crop,
+						rooms: body.rooms,
+						walls: body.walls,
+						candidates: body.candidates,
+						outlines: body.outlines
+					}
 				);
 				return json(result);
 			}
