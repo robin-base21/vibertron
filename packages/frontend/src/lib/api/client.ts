@@ -36,15 +36,21 @@ async function toError(res: Response): Promise<ApiError> {
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 	const f = opts.fetch ?? fetch;
-	const isForm = opts.body instanceof FormData;
+	const { body } = opts;
+	const isForm = body instanceof FormData;
 	let res: Response;
 	try {
 		res = await f(`${API_URL}${path}`, {
-			method: opts.method ?? (opts.body === undefined ? 'GET' : 'POST'),
+			method: opts.method ?? (body === undefined ? 'GET' : 'POST'),
 			credentials: 'include',
-			headers: opts.body === undefined || isForm ? undefined : { 'Content-Type': 'application/json' },
+			headers: body === undefined || isForm ? undefined : { 'Content-Type': 'application/json' },
+			// Strings are sent as-is (already-serialized JSON), so callers may pass either form.
 			body:
-				opts.body === undefined ? undefined : isForm ? (opts.body as FormData) : JSON.stringify(opts.body)
+				body === undefined
+					? undefined
+					: isForm || typeof body === 'string'
+						? body
+						: JSON.stringify(body)
 		});
 	} catch {
 		throw new ApiError(0, 'Cannot reach the server', 'network');

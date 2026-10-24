@@ -15,22 +15,30 @@ class WebSocketStore {
 	#handlers = new Map<string, Set<(e: ServerEvent) => void>>();
 	#subscriptions = new Map<string, Scope>();
 	#ping: ReturnType<typeof setInterval> | undefined;
+	#retry: ReturnType<typeof setTimeout> | undefined;
 	#closing = false;
 
 	connect() {
 		if (!browser || this.ws) return;
 		this.#closing = false;
-		this.ws = new WebSocket(WS_URL);
+		clearTimeout(this.#retry);
+		const ws = new WebSocket(WS_URL);
+		this.ws = ws;
+		// Handlers ignore events from sockets that were replaced (e.g. by reconnect()).
+		const current = () => this.ws === ws;
 
-		this.ws.onopen = () => {
+		ws.onopen = () => {
+			if (!current()) return;
 			this.connected = true;
 			this.error = null;
 			this.send({ type: 'ping' });
 			for (const [slug, scope] of this.#subscriptions) this.send({ type: 'subscribe', slug, scope });
+			clearInterval(this.#ping);
 			this.#ping = setInterval(() => this.send({ type: 'ping' }), 30_000);
 		};
 
-		this.ws.onmessage = (event) => {
+		ws.onmessage = (event) => {
+			if (!current()) return;
 			try {
 				this.#dispatch(JSON.parse(event.data) as ServerEvent);
 			} catch (error) {
@@ -38,18 +46,19 @@ class WebSocketStore {
 			}
 		};
 
-		this.ws.onerror = () => {
-			this.error = 'Connection error';
+		ws.onerror = () => {
+			if (current()) this.error = 'Connection error';
 		};
 
-		this.ws.onclose = () => {
+		ws.onclose = () => {
+			if (!current()) return;
 			this.connected = false;
 			this.ws = null;
 			clearInterval(this.#ping);
 			if (this.#closing) return;
 			// Attempt to reconnect after 3 seconds
-			setTimeout(() => {
-				if (!this.connected) this.connect();
+			this.#retry = setTimeout(() => {
+				if (!this.ws) this.connect();
 			}, 3000);
 		};
 	}
@@ -92,12 +101,13 @@ class WebSocketStore {
 	}
 
 	send(event: ClientEvent) {
-		if (this.ws && this.connected) this.ws.send(JSON.stringify(event));
+		if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(event));
 	}
 
 	disconnect() {
 		this.#closing = true;
 		clearInterval(this.#ping);
+		clearTimeout(this.#retry);
 		this.ws?.close();
 		this.ws = null;
 		this.connected = false;
