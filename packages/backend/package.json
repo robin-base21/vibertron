@@ -8,7 +8,8 @@
     "start": "bun --env-file=../../.env run index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun --env-file=../../.env run src/db/migrate.ts",
-    "seed": "bun --env-file=../../.env run src/db/seed.ts"
+    "seed": "bun --env-file=../../.env run src/db/seed.ts",
+    "analyze:fixture": "bun --env-file=../../.env run scripts/analyze-fixture.ts"
   },
   "dependencies": {
     "common": "workspace:*",

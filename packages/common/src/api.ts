@@ -263,6 +263,9 @@ export type ModerateBody = z.infer<typeof ModerateBody>;
 export const SaveBlueprintBody = z.object({ blueprint: Blueprint, version: z.number().int().min(0) });
 export type SaveBlueprintBody = z.infer<typeof SaveBlueprintBody>;
 
+/** rooms[i] is drawn as number i + ROOM_MARK_BASE on the marked image (shared by client and prompt). */
+export const ROOM_MARK_BASE = 1;
+
 export const AnalyzeRoom = z.object({
 	/** Orthogonal polygon or 2-point rect ([[x0,y0],[x1,y1]]) in canvas coordinates. */
 	points: z.array(Point).min(2),

@@ -14,11 +14,17 @@ let mgr: Client;
 let eventId = '';
 let slug = '';
 let aiCalls = 0;
+let lastAiBody: any = null;
 beforeAll(async () => {
 	srv = await bootTestServer({
 		env: { openrouterApiKey: 'sk-test' },
-		fetch: (async () => {
+		fetch: (async (_url: string, init: RequestInit) => {
 			aiCalls++;
+			lastAiBody = JSON.parse(String(init.body));
+			if (lastAiBody.response_format.json_schema.name === 'floorplan_rooms') {
+				const rooms = [{ index: 1, name: 'Main Hall', kind: 'work', confidence: 0.8, zones: [] }];
+				return Response.json({ choices: [{ message: { content: JSON.stringify({ rooms, extraZones: [] }) } }] });
+			}
 			const areas = [{ polygonIndex: 0, name: 'Main Hall', isWorkArea: true, suggestedStations: 10, confidence: 0.8, rect: null }];
 			return Response.json({ choices: [{ message: { content: JSON.stringify({ areas }) } }] });
 		}) as unknown as typeof fetch
@@ -89,4 +95,39 @@ test('analyze uses AI and returns a draft blueprint', async () => {
 	expect(wide.body.blueprint.canvas).toEqual({ w: 1000, h: 625 });
 	expect((await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { imageRef, candidates, canvas: { w: 0, h: 5 } })).status).toBe(400);
 	expect((await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { imageRef: 'f'.repeat(32), candidates })).status).toBe(404);
+});
+
+test('analyze v2: marked image goes to the model, original stays the underlay', async () => {
+	const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 9, 9, 9]);
+	const { imageRef } = (await mgr.post(`/api/events/${eventId}/uploads`, upload(PNG))).body;
+	const markedImageRef = (await mgr.post(`/api/events/${eventId}/uploads`, upload(JPEG, 'image/jpeg'))).body.imageRef;
+	const body = {
+		imageRef,
+		markedImageRef,
+		crop: { x: 0.1, y: 0.1, w: 0.8, h: 0.6 },
+		canvas: { w: 1000, h: 750 },
+		rooms: [{ shape: 'rect', points: [[100, 100], [500, 400]] }],
+		walls: [[[100, 100], [500, 100]]]
+	};
+	const r = await mgr.post(`/api/events/${eventId}/blueprint/analyze`, body);
+	expect(r.status).toBe(200);
+	expect(r.body.source).toBe('ai');
+	const img = lastAiBody.messages[1].content[1].image_url.url;
+	expect(img).toBe(`data:image/jpeg;base64,${Buffer.from(JPEG).toString('base64')}`);
+	expect(lastAiBody.messages[1].content[0].text).toContain('1: box');
+	const bp = r.body.blueprint;
+	expect(bp.underlay).toEqual({ imageRef, opacity: 0.35, crop: body.crop });
+	expect(bp.walls).toEqual([{ id: 'w1', a: [100, 100], b: [500, 100] }]);
+	expect(bp.segments[0]).toMatchObject({ name: 'Main Hall', shape: 'rect', points: [[100, 100], [500, 400]], stations: { count: 0, confirmed: false } });
+
+	// markedImageRef is validated like imageRef
+	expect((await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { ...body, markedImageRef: 'nope' })).status).toBe(400);
+	expect((await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { ...body, markedImageRef: 'e'.repeat(32) })).status).toBe(404);
+	const other = (await mgr.post('/api/events', { name: 'Other Plan' })).body.event;
+	const foreign = (await mgr.post(`/api/events/${other.id}/uploads`, upload(JPEG, 'image/jpeg'))).body.imageRef;
+	expect((await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { ...body, markedImageRef: foreign })).status).toBe(404);
+
+	// without a marked image the original is sent
+	await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { ...body, markedImageRef: undefined });
+	expect(lastAiBody.messages[1].content[1].image_url.url).toStartWith('data:image/png;base64,');
 });
