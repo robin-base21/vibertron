@@ -1,4 +1,4 @@
-import { Blueprint, type AnalyzeResultDTO, type AnalyzeRoom, type Outline, type Point } from 'common';
+import { Blueprint, ROOM_MARK_BASE, type AnalyzeResultDTO, type AnalyzeRoom, type Outline, type Point } from 'common';
 import { z } from 'zod';
 import { AnalyzeReplyV1, analyzeJsonSchemaV1, blueprintFromAreas, buildPromptV1, fallbackBlueprintV1 } from './analyze-v1';
 import {
@@ -23,8 +23,7 @@ import { AiError, imageDataUrl, structuredCompletion, type ChatMessage, type Ope
 
 export type { BuildInput } from './draft';
 
-/** rooms[i] is drawn as number i + ROOM_MARK_BASE on the marked image. */
-export const ROOM_MARK_BASE = 1;
+export { ROOM_MARK_BASE };
 /** Zone edges snap to a wall within this fraction of the canvas' long side. */
 export const SNAP_TOLERANCE = 0.02;
 /** Zones smaller than this fraction of the long side (after clamping) are dropped. */
