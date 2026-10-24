@@ -6,7 +6,11 @@ import { env as defaultEnv, type Env } from './env';
 import { corsHeaders, errorResponse, json, notFound, withHeaders } from './http';
 import { Live } from './live/broadcast';
 import { adminRoutes } from './routes/admin';
+import { attendeeRoutes } from './routes/attendee';
 import { authRoutes } from './routes/auth';
+import { eventRoutes } from './routes/events';
+import { inviteRoutes } from './routes/invites';
+import { joinRoutes } from './routes/join';
 
 export interface ServerOptions {
 	port?: number;
@@ -44,7 +48,11 @@ export function createServer(opts: ServerOptions = {}) {
 	const routes: Routes = {
 		'/api/health': { GET: () => json({ ok: true, time: Date.now() }) },
 		...authRoutes(app),
-		...adminRoutes(app)
+		...adminRoutes(app),
+		...eventRoutes(app),
+		...inviteRoutes(app),
+		...joinRoutes(app),
+		...attendeeRoutes(app)
 	};
 	const wrapped: Routes = {};
 	for (const [path, methods] of Object.entries(routes)) {
