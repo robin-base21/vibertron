@@ -9,6 +9,7 @@ import { websocketHandlers, wsData, type WSData } from './live/ws';
 import { adminRoutes } from './routes/admin';
 import { attendeeRoutes } from './routes/attendee';
 import { authRoutes } from './routes/auth';
+import { blueprintRoutes } from './routes/blueprints';
 import { eventRoutes } from './routes/events';
 import { inviteRoutes } from './routes/invites';
 import { joinRoutes } from './routes/join';
@@ -53,7 +54,8 @@ export function createServer(opts: ServerOptions = {}) {
 		...eventRoutes(app),
 		...inviteRoutes(app),
 		...joinRoutes(app),
-		...attendeeRoutes(app)
+		...attendeeRoutes(app),
+		...blueprintRoutes(app)
 	};
 	const wrapped: Routes = {};
 	for (const [path, methods] of Object.entries(routes)) {
