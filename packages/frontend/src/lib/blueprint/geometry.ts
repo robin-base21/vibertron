@@ -37,6 +37,21 @@ export function labelSize(s: Segment): number {
 	return Math.max(9, Math.min(26, byWidth, b.h * 0.16));
 }
 
+/** Height of the band at the top of a segment that holds its label (name + count). */
+export function labelBand(s: Segment): number {
+	const b = bounds(s.points);
+	return Math.min(b.h * 0.45, labelSize(s) * 1.55 + 6);
+}
+
+/** Where the label is drawn: centred in the top band, horizontally at labelPos.x (clamped). */
+export function labelAnchor(s: Segment): { x: number; nameY: number; countY: number; fs: number } {
+	const b = bounds(s.points);
+	const fs = labelSize(s);
+	const x = Math.max(b.x + 4, Math.min(b.x + b.w - 4, s.labelPos[0]));
+	const nameY = b.y + 4 + fs * 0.5;
+	return { x, nameY, countY: nameY + fs * 0.55, fs };
+}
+
 export interface StationGlyph {
 	id: string;
 	index: number;
@@ -45,7 +60,7 @@ export interface StationGlyph {
 
 export function stationGlyphs(s: Segment): StationGlyph[] {
 	const ids = stationIds(s);
-	return stationPositions(s).map((pos, i) => ({ id: ids[i]!, index: i, pos }));
+	return stationPositions(s, 12, labelBand(s)).map((pos, i) => ({ id: ids[i]!, index: i, pos }));
 }
 
 /** Distance between neighbouring station centers (for symbol sizing). */

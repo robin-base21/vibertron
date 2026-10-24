@@ -97,7 +97,7 @@
 			<Trash2 size={14} /> Delete segment
 		</button>
 		<p class="font-mono text-[10px] leading-relaxed opacity-40">
-			DBL-CLICK LABEL: RENAME · DRAG LABEL: MOVE IT · ALT: NO SNAP{s.shape === 'polygon'
+			DBL-CLICK LABEL: RENAME · DRAG LABEL: SLIDE IT · ALT: NO SNAP{s.shape === 'polygon'
 				? ' · DBL-CLICK EDGE: ADD VERTEX · ALT+CLICK VERTEX: REMOVE'
 				: ''}
 		</p>

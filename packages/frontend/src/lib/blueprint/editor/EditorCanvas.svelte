@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { bounds, type Point, type Segment } from 'common';
 	import Blueprint from '../Blueprint.svelte';
-	import { labelSize, normRect, pointsAttr, segmentVertices, snapPoint } from '../geometry';
+	import { labelAnchor, normRect, pointsAttr, segmentVertices, snapPoint } from '../geometry';
 	import { FONT_LABEL } from '../types';
 	import { refitLabel, translateSegment, type Editor } from './editor.svelte';
 
@@ -160,7 +160,8 @@
 				const dy = p[1] - d.start[1];
 				if (!d.moved && dx === 0 && dy === 0) return;
 				markMoved(d);
-				editor.patchSegment(d.id, (s) => ({ ...s, labelPos: [d.orig.labelPos[0] + dx, d.orig.labelPos[1] + dy] }));
+				// Labels live in the segment's top band, so only the horizontal position is free.
+				editor.patchSegment(d.id, (s) => ({ ...s, labelPos: [d.orig.labelPos[0] + dx, d.orig.labelPos[1]] }));
 				return;
 			}
 			case 'rect-handle': {
@@ -301,11 +302,12 @@
 				/>
 			{/each}
 			{#each bp.segments as s (s.id)}
-				{@const fs = labelSize(s)}
+				{@const a = labelAnchor(s)}
+				{@const fs = a.fs}
 				{@const w = Math.max(s.name.length, 3) * fs * 0.62}
 				<rect
-					x={s.labelPos[0] - w / 2}
-					y={s.labelPos[1] - fs * 0.65}
+					x={a.x - w / 2}
+					y={a.nameY - fs * 0.65}
 					width={w}
 					height={fs * 1.3}
 					fill="transparent"
@@ -423,9 +425,10 @@
 			{/if}
 
 			{#if renaming && renamingSeg}
-				{@const fs = labelSize(renamingSeg)}
+				{@const a = labelAnchor(renamingSeg)}
+				{@const fs = a.fs}
 				{@const w = Math.max(160, bounds(renamingSeg.points).w)}
-				<foreignObject x={renamingSeg.labelPos[0] - w / 2} y={renamingSeg.labelPos[1] - fs} width={w} height={fs * 2}>
+				<foreignObject x={a.x - w / 2} y={a.nameY - fs} width={w} height={fs * 2}>
 					<input
 						class="h-full w-full border border-bp-accent bg-black text-center text-white uppercase outline-none"
 						style:font-family={FONT_LABEL}

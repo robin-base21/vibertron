@@ -94,13 +94,16 @@ export function centroid(points: Point[]): Point {
 	return [b.x + b.w / 2, b.y + b.h / 2];
 }
 
-/** Station symbol centers inside a segment's bounding box (inset by `pad`). */
-export function stationPositions(segment: Segment, pad = 12): Point[] {
+/**
+ * Station symbol centers inside a segment's bounding box (inset by `pad`). `top` reserves an extra
+ * band at the top (renderers keep the segment label there so it never covers a station).
+ */
+export function stationPositions(segment: Segment, pad = 12, top = 0): Point[] {
 	const n = segment.stations.count;
 	if (n === 0) return [];
 	const b = bounds(segment.points);
 	const w = Math.max(b.w - pad * 2, 1);
-	const h = Math.max(b.h - pad * 2, 1);
+	const h = Math.max(b.h - pad * 2 - top, 1);
 	let cols: number;
 	let rows: number;
 	if (segment.stations.layout === 'row') {
@@ -115,7 +118,7 @@ export function stationPositions(segment: Segment, pad = 12): Point[] {
 	for (let i = 0; i < n; i++) {
 		const c = i % cols;
 		const r = Math.floor(i / cols);
-		out.push([b.x + pad + (w * (c + 0.5)) / cols, b.y + pad + (h * (r + 0.5)) / rows]);
+		out.push([b.x + pad + (w * (c + 0.5)) / cols, b.y + pad + top + (h * (r + 0.5)) / rows]);
 	}
 	return out;
 }

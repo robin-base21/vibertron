@@ -9,6 +9,7 @@
 		EyeOff,
 		Grid3x3,
 		ImageUp,
+		Lock,
 		MousePointer2,
 		Pentagon,
 		Printer,
@@ -56,6 +57,8 @@
 		toasts.success(`Draft applied: ${draft.segments.length} segments. Review names and confirm counts.`);
 	}
 
+	// The backend rejects saves while the event runs; make that obvious instead of failing on save.
+	const locked = $derived(data.eventStatus === 'live' || data.eventStatus === 'ended');
 	const dirty = $derived(JSON.stringify(editor.bp) !== savedJson);
 	const unconfirmed = $derived(unconfirmedSegments(editor.bp));
 
@@ -66,7 +69,7 @@
 	];
 
 	async function save() {
-		if (saving) return;
+		if (saving || locked) return;
 		if (data.fixture) {
 			toasts.push('Fixture mode: nothing is saved');
 			savedJson = JSON.stringify(editor.bp);
@@ -124,6 +127,7 @@
 	}
 
 	function onKeydown(e: KeyboardEvent) {
+		if (locked) return;
 		const mod = e.ctrlKey || e.metaKey;
 		if (mod && e.key.toLowerCase() === 's') {
 			e.preventDefault();
@@ -192,7 +196,7 @@
 		<span class="font-mono text-xs opacity-60">
 			{editor.bp.segments.length} SEG · {totalStations(editor.bp)} ST · V{version}{dirty ? ' · UNSAVED' : ''}
 		</span>
-		<button class="btn btn-sm btn-primary bp-label" onclick={save} disabled={saving || (!dirty && !data.fixture)}>
+		<button class="btn btn-sm btn-primary bp-label" onclick={save} disabled={locked || saving || (!dirty && !data.fixture)}>
 			<Save size={14} />
 			{saving ? 'Saving…' : 'Save'}
 		</button>
@@ -204,6 +208,7 @@
 				<button
 					class={['btn btn-sm join-item bp-label', editor.tool === t.id ? 'btn-primary' : 'btn-ghost']}
 					onclick={() => setTool(t.id)}
+					disabled={locked}
 					title="{t.label} ({t.key})"
 				>
 					<t.icon size={14} />
@@ -212,16 +217,17 @@
 			{/each}
 		</div>
 		<div class="join">
-			<button class="btn btn-sm btn-ghost join-item" onclick={() => editor.undo()} disabled={!editor.canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">
+			<button class="btn btn-sm btn-ghost join-item" onclick={() => editor.undo()} disabled={locked || !editor.canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">
 				<Undo2 size={14} />
 			</button>
-			<button class="btn btn-sm btn-ghost join-item" onclick={() => editor.redo()} disabled={!editor.canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+			<button class="btn btn-sm btn-ghost join-item" onclick={() => editor.redo()} disabled={locked || !editor.canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
 				<Redo2 size={14} />
 			</button>
 		</div>
 		<button
 			class={['btn btn-sm bp-label', editor.snap ? 'btn-outline' : 'btn-ghost opacity-60']}
 			onclick={() => (editor.snap = !editor.snap)}
+			disabled={locked}
 			title="Snap to the 10-unit grid (hold Alt to bypass)"
 		>
 			<Grid3x3 size={14} /> Snap
@@ -239,7 +245,7 @@
 					step="0.05"
 					class="range range-xs w-24"
 					value={editor.bp.underlay.opacity}
-					disabled={!showUnderlay}
+					disabled={locked || !showUnderlay}
 					oninput={(e) => editor.setUnderlayOpacity(e.currentTarget.valueAsNumber)}
 					aria-label="Underlay opacity"
 				/>
@@ -247,7 +253,7 @@
 			</div>
 		{/if}
 		<div class="ml-auto flex flex-wrap gap-2">
-			<button class="btn btn-sm btn-outline bp-label" onclick={() => (importing = true)} title="Import floorplan">
+			<button class="btn btn-sm btn-outline bp-label" onclick={() => (importing = true)} disabled={locked} title="Import floorplan">
 				<ImageUp size={14} /> Import floorplan
 			</button>
 			<button class={['btn btn-sm bp-label', invert ? 'btn-primary' : 'btn-ghost']} onclick={() => (invert = !invert)} title="Invert for print">
@@ -259,7 +265,13 @@
 		</div>
 	</div>
 
-	{#if unconfirmed.length}
+	{#if locked}
+		<div class="flex flex-wrap items-center gap-3 border border-bp-line/70 px-3 py-2" role="status">
+			<Lock size={16} />
+			<span class="bp-label text-sm font-semibold">Blueprint locked while the event is {data.eventStatus === 'live' ? 'live' : 'over'}</span>
+			<span class="text-sm opacity-60">View, invert and export only. Teams are seated on this version.</span>
+		</div>
+	{:else if unconfirmed.length}
 		<div class="flex flex-wrap items-center gap-3 border border-bp-accent/70 px-3 py-2" role="status">
 			<span class="bp-label text-sm font-semibold text-bp-accent">Launch is blocked until counts are confirmed</span>
 			<span class="flex flex-wrap gap-1">
@@ -279,7 +291,11 @@
 
 	<div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
 		<div class="border border-bp-line/40 lg:h-[calc(100vh-15rem)] lg:min-h-[480px]">
-			<EditorCanvas bind:this={canvas} {editor} {showUnderlay} {invert} class="h-full w-full" />
+			{#if locked}
+				<Blueprint blueprint={editor.bp} {showUnderlay} {invert} class="h-full w-full" />
+			{:else}
+				<EditorCanvas bind:this={canvas} {editor} {showUnderlay} {invert} class="h-full w-full" />
+			{/if}
 		</div>
 
 		<aside class="flex flex-col gap-3 border border-bp-line/40 p-3">
@@ -288,6 +304,8 @@
 				<button role="tab" class={['tab bp-label', tab === 'markup' && 'tab-active']} onclick={() => (tab = 'markup')}>Markup</button>
 				<button role="tab" class={['tab bp-label', tab === 'sheet' && 'tab-active']} onclick={() => (tab = 'sheet')}>Sheet</button>
 			</div>
+			<!-- `disabled` on a fieldset disables every control inside it while locked. -->
+			<fieldset disabled={locked} class="contents">
 			{#if tab === 'segment'}
 				<SegmentPanel {editor} />
 			{:else if tab === 'markup'}
@@ -311,6 +329,7 @@
 					<p class="font-mono text-xs opacity-60">CANVAS {editor.bp.canvas.w}×{editor.bp.canvas.h} · {editor.bp.outlines.length} OUTLINES</p>
 				</div>
 			{/if}
+			</fieldset>
 		</aside>
 	</div>
 </div>

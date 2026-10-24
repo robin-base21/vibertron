@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { bounds, LOW_CONFIDENCE, type Segment } from 'common';
 	import {
+		labelAnchor,
 		labelSize,
 		pointsAttr,
 		segmentVertices,
@@ -13,8 +14,8 @@
 	interface Props {
 		segment: Segment;
 		ctx: RenderCtx;
-		/** Accent fill under the outline (selection / highlight). */
-		highlighted?: boolean;
+		/** Accent fill under the outline: 'select' (editor selection, 40%) or 'highlight' (faint tint). */
+		highlighted?: 'select' | 'highlight' | null;
 		highlightStationId?: string;
 		/** Station ids taken by a team; drawn filled. */
 		occupied?: Set<string>;
@@ -23,7 +24,7 @@
 		labelMode?: 'center' | 'corner';
 	}
 
-	let { segment, ctx, highlighted = false, highlightStationId, occupied, hideLabel = false, labelMode = 'center' }: Props =
+	let { segment, ctx, highlighted = null, highlightStationId, occupied, hideLabel = false, labelMode = 'center' }: Props =
 		$props();
 
 	const verts = $derived(segmentVertices(segment));
@@ -32,10 +33,12 @@
 	const spacing = $derived(stationSpacing(segment, glyphs));
 	const sym = $derived(stationSymbolSize(spacing));
 	const showNumbers = $derived(spacing / ctx.u > 34);
+	// A confirmed count means the manager checked it, so the AI's doubt no longer applies.
 	const lowConfidence = $derived(
-		segment.confidence !== undefined && segment.confidence < LOW_CONFIDENCE
+		!segment.stations.confirmed && segment.confidence !== undefined && segment.confidence < LOW_CONFIDENCE
 	);
 	const fs = $derived(labelSize(segment));
+	const anchor = $derived(labelAnchor(segment));
 	const sw = $derived(structural(ctx));
 	const sw2 = $derived(secondary(ctx));
 	const dash = $derived(lowConfidence ? `${6 * ctx.u * ctx.boost} ${4 * ctx.u * ctx.boost}` : undefined);
@@ -44,14 +47,21 @@
 
 <g class="bp-segment" data-segment-id={segment.id}>
 	{#if highlighted}
-		<polygon points={pointsAttr(verts)} fill={ctx.accent} fill-opacity="0.4" stroke="none" />
+		<polygon
+			points={pointsAttr(verts)}
+			fill={ctx.accent}
+			fill-opacity={highlighted === 'select' ? 0.4 : 0.1}
+			stroke="none"
+		/>
 	{/if}
 
 	{#each glyphs as g (g.id)}
 		{#if g.id === highlightStationId}
-			<circle cx={g.pos[0]} cy={g.pos[1]} r={sym * 1.2} fill={ctx.accent} fill-opacity="0.55">
-				<animate attributeName="r" values="{sym * 0.9};{sym * 2.4};{sym * 0.9}" dur="1.8s" repeatCount="indefinite" />
-				<animate attributeName="fill-opacity" values="0.7;0.15;0.7" dur="1.8s" repeatCount="indefinite" />
+			<!-- Strong accent only on the station itself, drawn under the white strokes. -->
+			<circle cx={g.pos[0]} cy={g.pos[1]} r={sym * 1.1} fill={ctx.accent} />
+			<circle cx={g.pos[0]} cy={g.pos[1]} r={sym * 1.1} fill="none" stroke={ctx.accent} stroke-width={sym * 0.3}>
+				<animate attributeName="r" values="{sym * 1.1};{sym * 2.6};{sym * 1.1}" dur="1.8s" repeatCount="indefinite" />
+				<animate attributeName="stroke-opacity" values="0.9;0;0.9" dur="1.8s" repeatCount="indefinite" />
 			</circle>
 		{/if}
 	{/each}
@@ -108,8 +118,8 @@
 		>
 	{:else}
 		<text
-			x={segment.labelPos[0]}
-			y={segment.labelPos[1]}
+			x={anchor.x}
+			y={anchor.nameY}
 			font-family={FONT_LABEL}
 			font-weight="600"
 			font-size={fs}
@@ -123,8 +133,8 @@
 			stroke-linejoin="round">{segment.name.toUpperCase()}</text
 		>
 		<text
-			x={segment.labelPos[0]}
-			y={segment.labelPos[1] + fs * 0.85}
+			x={anchor.x}
+			y={anchor.countY}
 			font-family={FONT_MONO}
 			font-size={fs * 0.5}
 			text-anchor="middle"

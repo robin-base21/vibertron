@@ -123,7 +123,7 @@
 			<SegmentShape
 				segment={s}
 				{ctx}
-				highlighted={s.id === highlightSegmentId || s.id === selectedSegmentId}
+				highlighted={s.id === selectedSegmentId ? 'select' : s.id === highlightSegmentId ? 'highlight' : null}
 				{highlightStationId}
 				{occupied}
 				hideLabel={s.id === hideLabelFor}

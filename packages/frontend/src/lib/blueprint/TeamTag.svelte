@@ -26,7 +26,7 @@
 <g class="bp-team" data-team-id={placement.team.id}>
 	{#each placement.boxes as box, i (i)}
 		{#if highlighted}
-			<rect x={box.x} y={box.y} width={box.w} height={box.h} fill={ctx.accent} fill-opacity="0.4" />
+			<rect x={box.x} y={box.y} width={box.w} height={box.h} fill={ctx.accent} fill-opacity="0.12" />
 		{/if}
 		<rect
 			x={box.x}
