@@ -6,12 +6,12 @@
 	// Dark modules as one path on a white square with a 4-module quiet zone. Kept
 	// dark-on-light (not inverted) because many phone scanners reject inverted codes.
 	const qr = $derived.by(() => {
-		const grid = encodeQR(text, 'raw', { ecc: 'medium', border: 0 });
+		const grid = encodeQR(text, 'raw', { ecc: 'medium', border: 4 });
 		const n = grid.length;
 		let d = '';
 		for (let y = 0; y < n; y++)
-			for (let x = 0; x < n; x++) if (grid[y]![x]) d += `M${x + 4} ${y + 4}h1v1h-1z`;
-		return { size: n + 8, d };
+			for (let x = 0; x < n; x++) if (grid[y]![x]) d += `M${x} ${y}h1v1h-1z`;
+		return { size: n, d };
 	});
 </script>
 
