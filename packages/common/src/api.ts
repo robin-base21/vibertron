@@ -263,13 +263,32 @@ export type ModerateBody = z.infer<typeof ModerateBody>;
 export const SaveBlueprintBody = z.object({ blueprint: Blueprint, version: z.number().int().min(0) });
 export type SaveBlueprintBody = z.infer<typeof SaveBlueprintBody>;
 
+export const AnalyzeRoom = z.object({
+	/** Orthogonal polygon or 2-point rect ([[x0,y0],[x1,y1]]) in canvas coordinates. */
+	points: z.array(Point).min(2),
+	shape: z.enum(['rect', 'polygon'])
+});
+export type AnalyzeRoom = z.infer<typeof AnalyzeRoom>;
+
 export const AnalyzeBody = z.object({
+	/** The original upload (becomes the underlay). */
 	imageRef: z.string(),
-	/** Candidate room polygons from the client-side OpenCV pass, normalized 0..1000. */
-	candidates: z.array(z.array(Point).min(3)).max(80),
-	/** Wall/room outlines to keep as decorative geometry. */
+	/**
+	 * v2: the cropped building image with each room outlined and numbered (Set-of-Marks),
+	 * uploaded by the client. Sent to the model instead of the original when present.
+	 */
+	markedImageRef: z.string().optional(),
+	/** v2: building envelope as fractions of the original image; the canvas maps to it. */
+	crop: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().gt(0).max(1), h: z.number().gt(0).max(1) }).optional(),
+	/** v2: rooms detected by the CV pass, indexed as numbered on the marked image. */
+	rooms: z.array(AnalyzeRoom).max(80).default([]),
+	/** v2: vectorized wall segments in canvas coordinates. */
+	walls: z.array(z.tuple([Point, Point])).max(600).default([]),
+	/** Legacy (v1): candidate room polygons. */
+	candidates: z.array(z.array(Point).min(3)).max(80).default([]),
+	/** Legacy (v1): decorative outlines. */
 	outlines: z.array(z.array(Point).min(2)).max(400).default([]),
-	/** Canvas the candidates/outlines are normalized to (long side 1000, image aspect ratio). Defaults to 1000x1000. */
+	/** Canvas the geometry is normalized to (long side 1000, envelope aspect ratio). Defaults to 1000x1000. */
 	canvas: z.object({ w: z.number().positive().max(10_000), h: z.number().positive().max(10_000) }).optional()
 });
 export type AnalyzeBody = z.infer<typeof AnalyzeBody>;

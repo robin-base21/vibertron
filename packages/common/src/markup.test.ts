@@ -56,3 +56,34 @@ test('dedupes generated ids and quotes names', () => {
 	const again = parseMarkup(serializeMarkup(r.blueprint));
 	expect(again.ok && again.blueprint.segments[0]!.name).toBe('A "x"');
 });
+
+test('walls and labelled rooms round-trip; decorative outlines are kept from base', () => {
+	const base: Blueprint = {
+		...emptyBlueprint(),
+		outlines: [
+			{ id: 'o1', kind: 'wall', points: [[0, 0], [10, 0]], closed: false },
+			{ id: 'r9', kind: 'room', points: [[0, 0], [1, 0], [1, 1]], closed: true, label: 'Old' }
+		]
+	};
+	const src = `wall 0,0 1000,0
+wall 0,0 0,600 id outer_w
+room "Kitchen" rect 600,500 200x150
+segment "Hall" rect 0,0 500x500 stations 4 grid`;
+	const r = parseMarkup(src, base);
+	expect(r.ok).toBe(true);
+	if (!r.ok) return;
+	expect(r.blueprint.walls).toEqual([
+		{ id: 'w1', a: [0, 0], b: [1000, 0] },
+		{ id: 'outer_w', a: [0, 0], b: [0, 600] }
+	]);
+	// the old labelled room is replaced by the markup; the decorative outline stays
+	expect(r.blueprint.outlines.map((o) => o.id)).toEqual(['o1', 'r1']);
+	expect(r.blueprint.outlines[1]).toEqual({ id: 'r1', kind: 'room', points: [[600, 500], [800, 500], [800, 650], [600, 650]], closed: true, label: 'Kitchen' });
+	const again = parseMarkup(serializeMarkup(r.blueprint), r.blueprint);
+	expect(again).toEqual(r);
+});
+
+test('wall errors', () => {
+	const r = parseMarkup('wall 0,0\nwall 0,0 1,1 id a\nwall 0,0 2,2 id a');
+	expect(r.ok === false && r.errors.map((e) => e.line)).toEqual([1, 3]);
+});

@@ -29,14 +29,33 @@ export const Outline = z.object({
 	id: z.string().min(1),
 	kind: z.enum(['wall', 'room']),
 	points: z.array(Point).min(2),
-	closed: z.boolean().default(true)
+	closed: z.boolean().default(true),
+	// Room name for non-work areas ("Kitchen", "WC"), drawn as a small label at the outline's center.
+	label: z.string().min(1).max(60).optional()
 });
 export type Outline = z.infer<typeof Outline>;
+
+/** A straight wall segment: the editable floorplan drawing under the segments. */
+export const Wall = z.object({
+	id: z.string().min(1),
+	a: Point,
+	b: Point
+});
+export type Wall = z.infer<typeof Wall>;
 
 export const Blueprint = z.object({
 	schemaVersion: z.literal(1),
 	canvas: z.object({ w: z.number().positive(), h: z.number().positive() }),
-	underlay: z.object({ imageRef: z.string(), opacity: z.number().min(0).max(1) }).optional(),
+	underlay: z
+		.object({
+			imageRef: z.string(),
+			opacity: z.number().min(0).max(1),
+			// Part of the source image the canvas maps to, as fractions of its width/height
+			// (the building envelope). Absent: the whole image fills the canvas.
+			crop: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().gt(0).max(1), h: z.number().gt(0).max(1) }).optional()
+		})
+		.optional(),
+	walls: z.array(Wall).default([]),
 	outlines: z.array(Outline),
 	segments: z.array(Segment),
 	titleBlock: z.object({
@@ -53,6 +72,7 @@ export function emptyBlueprint(project = 'Untitled', date = new Date().toISOStri
 	return {
 		schemaVersion: 1,
 		canvas: { w: 1000, h: 1000 },
+		walls: [],
 		outlines: [],
 		segments: [],
 		titleBlock: { project, date, rev: 'A' }

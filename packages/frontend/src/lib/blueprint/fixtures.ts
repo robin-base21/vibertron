@@ -5,6 +5,7 @@ import { stationIds, type Blueprint, type LiveSnapshotDTO, type MessageDTO, type
 export const fixtureBlueprint: Blueprint = {
 	schemaVersion: 1,
 	canvas: { w: 1000, h: 625 },
+	walls: [],
 	outlines: [
 		{ id: 'o1', kind: 'wall', closed: true, points: [[40, 40], [960, 40], [960, 585], [40, 585]] },
 		{ id: 'o2', kind: 'wall', closed: false, points: [[520, 40], [520, 250]] },

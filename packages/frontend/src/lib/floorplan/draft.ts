@@ -40,6 +40,7 @@ export function localDraft(
 	return {
 		schemaVersion: 1,
 		canvas: run.canvas,
+		walls: [],
 		...(imageRef ? { underlay: { imageRef, opacity: 0.35 } } : {}),
 		outlines: run.outlines.map((points, i) => ({ id: `o${i + 1}`, kind: 'wall', points, closed: points.length > 2 })),
 		segments: run.candidates.map((points, i) => ({

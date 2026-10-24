@@ -4,11 +4,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --watch index.ts",
-    "start": "bun run index.ts",
+    "dev": "bun --env-file=../../.env run --watch index.ts",
+    "start": "bun --env-file=../../.env run index.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "bun run src/db/migrate.ts",
-    "seed": "bun run src/db/seed.ts"
+    "db:migrate": "bun --env-file=../../.env run src/db/migrate.ts",
+    "seed": "bun --env-file=../../.env run src/db/seed.ts"
   },
   "dependencies": {
     "common": "workspace:*",
