@@ -34,7 +34,7 @@ export class Client {
 	async req<T = any>(method: string, path: string, body?: unknown): Promise<{ status: number; body: T; res: Response }> {
 		const headers: Record<string, string> = {};
 		if (this.cookie) headers.cookie = this.cookie;
-		let payload: BodyInit | undefined;
+		let payload: FormData | string | undefined;
 		if (body instanceof FormData) payload = body;
 		else if (body !== undefined) {
 			headers['content-type'] = 'application/json';
