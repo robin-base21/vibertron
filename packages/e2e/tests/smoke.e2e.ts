@@ -40,8 +40,8 @@ const friendCodeOf = (page: Page) =>
 	page.locator('section', { hasText: 'Your friend code' }).locator('.font-mono').first().innerText();
 
 /**
- * Public pages the TV worker owns. They are checked only when the route exists and renders
- * real event data; otherwise the check is skipped with an annotation.
+ * The viewer page (/e/<slug>/live) is checked only when it renders real event data; until the
+ * TV worker replaces its fixture content the check is skipped with an annotation.
  */
 async function publicViewShows(page: Page, path: string): Promise<boolean> {
 	const res = await page.goto(path);
@@ -181,31 +181,37 @@ test('event lifecycle: invite → join → pair → launch → codename → mess
 		await expect(ada!.page.getByText('You’re with Cy.')).toBeVisible();
 	});
 
+	// The TV stays open from here on, so every change below must arrive over WS without a reload.
+	const tvContext = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+	const tv = await tvContext.newPage();
+	await test.step('TV shows the live event', async () => {
+		await tv.goto(`/e/${slug}/tv`);
+		await expect(tv.getByRole('heading', { name: EVENT_NAME })).toBeVisible();
+		await expect(tv).toHaveTitle(`${EVENT_NAME} · TV`);
+	});
+
 	await test.step('Ada sets the codename and posts a message', async () => {
 		await ada!.page.getByPlaceholder('Pick a name for the TV').fill('Night Owls');
 		await ada!.page.getByRole('button', { name: 'Save' }).click();
 		await expect(ada!.page.getByText('Night Owls', { exact: true })).toBeVisible();
 		await expect(cy!.page.getByText('Night Owls', { exact: true })).toBeVisible();
+		await expect(tv.getByText('Night Owls', { exact: true }).first()).toBeVisible();
 
 		await ada!.page.getByPlaceholder('Shows up on the venue TV').fill(MESSAGE);
 		await ada!.page.getByRole('button', { name: 'Post' }).click();
 		await expect(mgr.getByText(MESSAGE)).toBeVisible();
+		await expect(tv.getByText(MESSAGE)).toBeVisible();
 	});
 
 	const viewerContext = await browser.newContext();
 	const viewer = await viewerContext.newPage();
-	const publicPaths = [`/e/${slug}/live`, `/e/${slug}/tv`];
-	const livePaths: string[] = [];
+	let liveViewer = false;
 
-	await test.step('message is visible on public views', async () => {
+	await test.step('message is in the public snapshot and viewer page', async () => {
 		const snap = (await (await viewer.request.get(`${API_URL}/api/e/${slug}/live`)).json()) as { messages: { body: string }[] };
 		expect(snap.messages.map((m) => m.body)).toContain(MESSAGE);
-		for (const path of publicPaths) {
-			if (await publicViewShows(viewer, path)) {
-				livePaths.push(path);
-				await expect(viewer.getByText(MESSAGE)).toBeVisible();
-			}
-		}
+		liveViewer = await publicViewShows(viewer, `/e/${slug}/live`);
+		if (liveViewer) await expect(viewer.getByText(MESSAGE)).toBeVisible();
 	});
 
 	await test.step('manager hides it and it disappears', async () => {
@@ -214,20 +220,18 @@ test('event lifecycle: invite → join → pair → launch → codename → mess
 		await expect(row.getByRole('button', { name: 'Unhide' })).toBeVisible();
 		await expect(mgr.getByText('1 · 1 hidden')).toBeVisible();
 
+		await expect(tv.getByText(MESSAGE)).toHaveCount(0);
+		if (liveViewer) await expect(viewer.getByText(MESSAGE)).toHaveCount(0);
 		const snap = (await (await viewer.request.get(`${API_URL}/api/e/${slug}/live`)).json()) as { messages: { body: string }[] };
 		expect(snap.messages.map((m) => m.body)).not.toContain(MESSAGE);
-		for (const path of livePaths) {
-			await viewer.goto(path);
-			await expect(viewer.getByText(EVENT_NAME).first()).toBeVisible();
-			await expect(viewer.getByText(MESSAGE)).toHaveCount(0);
-		}
 	});
 
 	await test.step('manager ends the event', async () => {
 		await mgr.getByRole('button', { name: 'End event' }).click();
 		await expect(mgr.getByText('Event ended')).toBeVisible();
 		for (const a of attendees) await expect(a.page.getByText('That’s a wrap')).toBeVisible();
+		await expect(tv.getByText(/Final codenames/)).toBeVisible();
 	});
 
-	await Promise.all([mgrContext, viewerContext, ...attendees.map((a) => a.context)].map((c) => c.close()));
+	await Promise.all([mgrContext, tvContext, viewerContext, ...attendees.map((a) => a.context)].map((c) => c.close()));
 });
