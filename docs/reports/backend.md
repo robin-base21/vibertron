@@ -61,3 +61,54 @@ The whole REST and WS contract from `packages/common/src/api.ts` and `ws.ts`, in
 
 ## COMMON CHANGES
 None.
+
+## Round 3: analyze v2
+
+### What changed
+- **Route** (`POST /api/events/:id/blueprint/analyze`):
+  - `markedImageRef` is checked the same way as `imageRef`: a malformed ref returns 400, and an upload that is missing or belongs to another event returns 404.
+  - The model sees the marked image when one is sent, otherwise the original. The original always stays the underlay.
+  - `rooms`, `walls`, `crop` and `canvas` are passed through.
+- **Code layout** (`packages/backend/src/ai/`):
+  - `draft.ts` holds the shared helpers: base blueprint with walls `w1..`, underlay plus `crop`, segment and outline builders, name de-duplication, and canvas ↔ model-space conversion.
+  - `analyze-v1.ts` is the unchanged legacy path.
+  - `analyze.ts` is v2 plus the `analyzeFloorplan` dispatcher.
+- **Prompt and schema v2**:
+  - The input is the marked image plus a room list: `N: box [ymin, xmin, ymax, xmax]` in 0..1000 of the marked image.
+  - The reply has, per room: `index`, `name`, `kind` (`work|lounge|kitchen|meeting|corridor|stairs|toilet|storage|other`), `confidence`, and `zones[] {name, kind, box}`. A top-level `extraZones[]` covers work areas the CV missed entirely.
+  - There are no station counts. The JSON Schema is strict and plain (no provider extensions, no `minItems`); zod checks box length and clamps confidence. The one retry with validation errors works as before.
+  - The model comes from `OPENROUTER_MODEL`, and the schema name is `floorplan_rooms`.
+- **Draft building** (on the request canvas):
+  - Work room without work zones → a segment from the room geometry. Rects get normalized corners; orthogonal polygons are kept as they are.
+  - Work zones → rect segments. Order: box → canvas, snap each edge to the nearest wall line within 2% of the long side (only walls whose span overlaps the zone), then clamp into the room's bbox. Zones that collapse below 1% of the long side are dropped.
+  - Non-work rooms and non-work zones → `kind: 'room'` outlines with `label`, as closed polygons (rects expand to 4 corners).
+  - A non-work room that contains work zones keeps its labelled outline and also gets the zone segments.
+  - All segments get `stations: { count: 0, layout: 'grid', confirmed: false }`. Rooms and zones carry the room's confidence; extra zones get 0.5.
+- **Fallback** (no key, or any AI error after the retry): each room becomes segment "Area N". Walls and crop are kept, with `source: 'fallback'` and a warning.
+- **Legacy**: when `rooms` is empty and `candidates` is non-empty, the old v1 prompt, schema and mapping run unchanged. With no rooms and no candidates, the v2 prompt asks for `extraZones` only.
+- **Dev script**: `bun run --filter backend analyze:fixture <image> <rooms.json> [--marked <img>]`.
+  - It prints the raw model replies (including the retry), the timing, and a segment/outline summary.
+  - Without `OPENROUTER_API_KEY` it is a dry run: it prints the prompt and the fallback draft and never touches the network.
+  - Example input: `packages/backend/scripts/fixtures/rooms.example.json`.
+
+### Decisions the blueprint worker needs to match
+- **Room marks are 1-based**: `rooms[i]` must be drawn as number `i + 1` on the marked image (`ROOM_MARK_BASE` in `analyze.ts`). The room list in the prompt uses the same numbers.
+- Boxes are relative to the **marked image**, which is assumed to cover exactly the request canvas (the crop), so `x = xmin / 1000 * canvas.w` and `y = ymin / 1000 * canvas.h`.
+
+### Other decisions / gaps
+- Rooms the model leaves out become **unlabelled** room outlines, not segments, so they don't block launch. Invalid or duplicate indices are ignored; the first entry wins.
+- Zones are clamped to the room's **bounding box**, not to the exact shape of an L-shaped orthogonal polygon.
+- Walls more than 1% of the long side away from axis-aligned are ignored for snapping, but still kept as walls.
+- I didn't run the script against the real OpenRouter API because no key was set. The dry run on the blue-grid fixture works.
+
+### Verification
+- `bun test`: 56 pass, including the new `test/analyze-v2.test.ts` and the extended `test/blueprints.test.ts`. They cover:
+  - request shape: marked image sent as a JPEG data URL, numbered room list in model space, strict schema with no station fields;
+  - zone wall-snapping and clamping;
+  - non-work rooms and zones becoming labelled outlines, and skipped rooms becoming unlabelled outlines;
+  - extra zones;
+  - fallback for no key, network error, and two invalid replies;
+  - legacy v1 compatibility (existing `ai.test.ts` and the route test with `candidates`);
+  - `markedImageRef` validation (400, 404, other event's upload → 404).
+- `bun run typecheck` and `bun run check` are clean.
+- No common changes this round.
