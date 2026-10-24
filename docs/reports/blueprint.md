@@ -174,3 +174,39 @@ Verified after these changes:
 Both additive, both made in the follow-ups at the coordinator's request.
 - `api.ts`: optional `AnalyzeBody.canvas: { w, h }` (each positive, at most 10 000). It defaults to 1000×1000 on the backend, so older clients are unaffected.
 - `blueprint.ts`: `stationPositions(segment, pad = 12, top = 0)`. The new `top` reserves a band at the top of the segment; the default keeps the old behaviour. New test file: `blueprint.test.ts`.
+
+## Round 3: floorplan import v2 + editable walls (in progress)
+
+**Done (committed on `ws/blueprint`)**
+- `src/lib/floorplan/pipeline.ts` is pure: `runPipeline(cv, raster)` returns `{canvas, crop, envelope, walls, rooms}`.
+  - Ink mask: median background, contrast plus low saturation, with an Otsu fallback.
+  - Wall mask: long-line open/close.
+  - Envelope crop.
+  - Run-length wall vectorization. Double-line walls are paired; in double-line plans the single lines (furniture) are dropped. Stair treads are removed. Lines are merged, snapped at junctions and split at T/X junctions.
+  - Rooms: connected components between the vector walls plus door bridges (up to 7% of the envelope long side, including L-corner ends). Shapes are traced on a cell grid, so they are rects or orthogonal polygons with no diagonals, and their edges snap to walls. Furniture nesting is checked only for single-line plans.
+- `pipeline.test.ts` runs on `blue-grid.png` (opencv-js + pngjs) in about 0.3 s. It checks:
+  - the envelope is within ±1%;
+  - there are ≥ 4 rooms;
+  - the dining table is not a room;
+  - the stair/corridor core is its own room, outside the open plan;
+  - there are ≥ 20 walls and all are axis-aligned;
+  - polygons are orthogonal.
+- Worker (`detect.worker.ts` / `detect.ts`): runs the pipeline and renders the Set-of-Marks JPEG (`marked.ts`, numbers `i + ROOM_MARK_BASE`). The dialog uploads it, then calls analyze v2 with `{imageRef, markedImageRef, crop, canvas, rooms, walls}`. The fallback is `localDraft` ("Area N").
+- Import preview: shows the draft over the underlay. It has "Replace walls" and "Replace segments & rooms" toggles (`applyDraft` rescales whatever is kept) and an optional overlay of the detected rooms.
+- Renderer:
+  - walls are drawn as structural lines;
+  - labelled outlines are drawn as dashed rooms with small labels;
+  - legacy outlines are faint;
+  - the underlay is positioned by `crop` and clipped to the canvas.
+- The fixture blueprint now uses walls and a labelled Kitchen.
+- Gates at this point: `bun test` 53 pass; typecheck and check are clean.
+
+**Not done yet**
+- §4 editor:
+  - Walls tool (orthogonal by default, Alt for free angle), wall select/move/endpoint drag/Delete, snapping to endpoints, lines and the grid.
+  - Vertex select + Delete.
+  - Convert to rect / Orthogonalize.
+  - Segment edges snapping to walls.
+  - Room label rename/move/delete.
+- Visual check of the editor after a real import.
+- `bun run test:e2e` has not been re-run this round.
