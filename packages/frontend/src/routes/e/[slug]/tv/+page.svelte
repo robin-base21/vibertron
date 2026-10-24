@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import Blueprint from '$lib/blueprint/Blueprint.svelte';
 	import BigCountdown from '$lib/blueprint/live/BigCountdown.svelte';
 	import MessageFeed from '$lib/blueprint/live/MessageFeed.svelte';
@@ -14,7 +15,11 @@
 	// svelte-ignore state_referenced_locally
 	const liveEvent = new LiveEvent(data.slug);
 
-	$effect(() => (data.fixture ? startFixture(liveEvent, data.fixture) : liveEvent.start()));
+	// Subscription setup only; untracked so WS reconnects don't tear it down and redo it.
+	$effect(() => {
+		const fixture = data.fixture;
+		return untrack(() => (fixture ? startFixture(liveEvent, fixture) : liveEvent.start()));
+	});
 
 	const snap = $derived(liveEvent.snapshot);
 	const phase = $derived(livePhase(snap, liveEvent.error, clock.now));
