@@ -23,7 +23,7 @@ describe('auth + admin', () => {
 		expect(pre.headers.get('access-control-allow-methods')).toContain('PATCH');
 		const missing = await fetch(`${srv.url}/api/nope`);
 		expect(missing.status).toBe(404);
-		expect((await missing.json()).error).toBe('not_found');
+		expect(((await missing.json()) as any).error).toBe('not_found');
 	});
 
 	test('login, me, logout', async () => {
