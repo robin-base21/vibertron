@@ -63,14 +63,17 @@ export function stationSpacing(s: Segment, glyphs: StationGlyph[]): number {
 
 export const stationSymbolSize = (spacing: number) => Math.max(3, Math.min(16, spacing * 0.42));
 
+type Box = { x: number; y: number; w: number; h: number };
+
 export interface TeamPlacement {
 	team: TeamDTO;
 	label: string;
-	box: { x: number; y: number; w: number; h: number };
+	/** One box per row of the team's stations (a team can wrap onto the next row). */
+	boxes: Box[];
 	stationIds: Set<string>;
 }
 
-/** Bounding box around each team's stations in its segment, padded by the symbol size. */
+/** Boxes around each team's stations in its segment, padded by the symbol size. */
 export function teamPlacements(segments: Segment[], teams: TeamDTO[]): TeamPlacement[] {
 	const byId = new Map(segments.map((s) => [s.id, s]));
 	const out: TeamPlacement[] = [];
@@ -82,13 +85,18 @@ export function teamPlacements(segments: Segment[], teams: TeamDTO[]): TeamPlace
 		const pts = glyphs.filter((g) => ids.has(g.id)).map((g) => g.pos);
 		if (!pts.length) continue;
 		const pad = stationSymbolSize(stationSpacing(seg, glyphs)) * 0.9;
-		const b = bounds(pts);
-		out.push({
-			team,
-			label: team.codename || team.name,
-			box: { x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 },
-			stationIds: ids
-		});
+		const rows = new Map<number, Point[]>();
+		for (const p of pts) {
+			const key = Math.round(p[1] * 10);
+			rows.set(key, [...(rows.get(key) ?? []), p]);
+		}
+		const boxes = [...rows.entries()]
+			.sort((a, b) => a[0] - b[0])
+			.map(([, row]) => {
+				const b = bounds(row);
+				return { x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 };
+			});
+		out.push({ team, label: team.codename || team.name, boxes, stationIds: ids });
 	}
 	return out;
 }

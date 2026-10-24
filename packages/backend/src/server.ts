@@ -5,18 +5,24 @@ import { migrateDb, openDb } from './db';
 import { env as defaultEnv, type Env } from './env';
 import { corsHeaders, errorResponse, json, notFound, withHeaders } from './http';
 import { Live } from './live/broadcast';
+import { websocketHandlers, wsData, type WSData } from './live/ws';
 import { adminRoutes } from './routes/admin';
 import { attendeeRoutes } from './routes/attendee';
 import { authRoutes } from './routes/auth';
+import { blueprintRoutes } from './routes/blueprints';
 import { eventRoutes } from './routes/events';
 import { inviteRoutes } from './routes/invites';
 import { joinRoutes } from './routes/join';
+import { endExpiredEvents, launchRoutes } from './routes/launch';
+import { liveRoutes } from './routes/live';
 
 export interface ServerOptions {
 	port?: number;
 	dbPath?: string;
 	env?: Partial<Env>;
 	fetch?: typeof fetch;
+	/** How often live events past endsAt are ended (default 5 s). */
+	autoEndIntervalMs?: number;
 	/** Run migrations on boot (default true). */
 	migrate?: boolean;
 }
@@ -52,21 +58,24 @@ export function createServer(opts: ServerOptions = {}) {
 		...eventRoutes(app),
 		...inviteRoutes(app),
 		...joinRoutes(app),
-		...attendeeRoutes(app)
+		...attendeeRoutes(app),
+		...blueprintRoutes(app),
+		...launchRoutes(app),
+		...liveRoutes(app)
 	};
 	const wrapped: Routes = {};
 	for (const [path, methods] of Object.entries(routes)) {
 		wrapped[path] = Object.fromEntries(Object.entries(methods).map(([m, h]) => [m, wrap(h)]));
 	}
 
-	const server = Bun.serve<{ userId: string | null }>({
+	const server = Bun.serve<WSData>({
 		port: env.port,
 		routes: wrapped,
 		fetch(req, server) {
 			const url = new URL(req.url);
 			if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 			if (url.pathname === '/ws') {
-				if (server.upgrade(req, { data: { userId: null } })) return undefined;
+				if (server.upgrade(req, { data: wsData(app, req) })) return undefined;
 				return new Response('WebSocket upgrade failed', { status: 400 });
 			}
 			const known = Object.keys(routes).some((p) => new RegExp(`^${p.replace(/:[^/]+/g, '[^/]+')}$`).test(url.pathname));
@@ -75,15 +84,20 @@ export function createServer(opts: ServerOptions = {}) {
 				: errorResponse(notFound());
 			return withHeaders(res, cors);
 		},
-		websocket: {
-			message(ws, message) {
-				ws.send(JSON.stringify({ type: 'pong', serverTime: Date.now() }));
-			}
-		}
+		websocket: websocketHandlers(app)
 	});
 	app.live.attach(server);
 
-	const timers = [setInterval(() => purgeExpiredSessions(db), 60 * 60 * 1000)];
+	const timers = [
+		setInterval(() => purgeExpiredSessions(db), 60 * 60 * 1000),
+		setInterval(() => {
+			try {
+				endExpiredEvents(app);
+			} catch (err) {
+				console.error('auto-end failed', err);
+			}
+		}, opts.autoEndIntervalMs ?? 5_000)
+	];
 
 	return {
 		app,
