@@ -13,12 +13,16 @@ import { blueprintRoutes } from './routes/blueprints';
 import { eventRoutes } from './routes/events';
 import { inviteRoutes } from './routes/invites';
 import { joinRoutes } from './routes/join';
+import { endExpiredEvents, launchRoutes } from './routes/launch';
+import { liveRoutes } from './routes/live';
 
 export interface ServerOptions {
 	port?: number;
 	dbPath?: string;
 	env?: Partial<Env>;
 	fetch?: typeof fetch;
+	/** How often live events past endsAt are ended (default 5 s). */
+	autoEndIntervalMs?: number;
 	/** Run migrations on boot (default true). */
 	migrate?: boolean;
 }
@@ -55,7 +59,9 @@ export function createServer(opts: ServerOptions = {}) {
 		...inviteRoutes(app),
 		...joinRoutes(app),
 		...attendeeRoutes(app),
-		...blueprintRoutes(app)
+		...blueprintRoutes(app),
+		...launchRoutes(app),
+		...liveRoutes(app)
 	};
 	const wrapped: Routes = {};
 	for (const [path, methods] of Object.entries(routes)) {
@@ -82,7 +88,16 @@ export function createServer(opts: ServerOptions = {}) {
 	});
 	app.live.attach(server);
 
-	const timers = [setInterval(() => purgeExpiredSessions(db), 60 * 60 * 1000)];
+	const timers = [
+		setInterval(() => purgeExpiredSessions(db), 60 * 60 * 1000),
+		setInterval(() => {
+			try {
+				endExpiredEvents(app);
+			} catch (err) {
+				console.error('auto-end failed', err);
+			}
+		}, opts.autoEndIntervalMs ?? 5_000)
+	];
 
 	return {
 		app,
