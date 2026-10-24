@@ -73,3 +73,60 @@ export class Client {
 		return r.body.user;
 	}
 }
+
+/** WebSocket test client that buffers messages and lets tests await a given type. */
+export class WSClient {
+	ws: WebSocket;
+	messages: any[] = [];
+	private waiters: { type: string; resolve: (m: any) => void }[] = [];
+
+	constructor(base: string, cookie = '') {
+		const url = base.replace(/^http/, 'ws') + '/ws';
+		// Bun extension: headers on the upgrade request.
+		this.ws = new WebSocket(url, { headers: cookie ? { cookie } : {} } as any);
+		this.ws.onmessage = (e) => {
+			const msg = JSON.parse(String(e.data));
+			const i = this.waiters.findIndex((w) => w.type === msg.type);
+			if (i >= 0) this.waiters.splice(i, 1)[0]!.resolve(msg);
+			else this.messages.push(msg);
+		};
+	}
+
+	opened() {
+		return new Promise<void>((resolve, reject) => {
+			if (this.ws.readyState === WebSocket.OPEN) return resolve();
+			this.ws.onopen = () => resolve();
+			this.ws.onerror = (e) => reject(e);
+		});
+	}
+
+	send(msg: unknown) {
+		this.ws.send(JSON.stringify(msg));
+	}
+
+	next<T = any>(type: string, timeoutMs = 2000): Promise<T> {
+		const i = this.messages.findIndex((m) => m.type === type);
+		if (i >= 0) return Promise.resolve(this.messages.splice(i, 1)[0]);
+		return new Promise((resolve, reject) => {
+			const waiter = { type, resolve };
+			this.waiters.push(waiter);
+			setTimeout(() => {
+				const j = this.waiters.indexOf(waiter);
+				if (j >= 0) {
+					this.waiters.splice(j, 1);
+					reject(new Error(`timeout waiting for ${type}; got ${JSON.stringify(this.messages.map((m) => m.type))}`));
+				}
+			}, timeoutMs);
+		});
+	}
+
+	close() {
+		this.ws.close();
+	}
+}
+
+export async function connectWS(base: string, cookie = '') {
+	const c = new WSClient(base, cookie);
+	await c.opened();
+	return c;
+}
