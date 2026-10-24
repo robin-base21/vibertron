@@ -38,6 +38,8 @@ export interface FloorplanGeometry {
 }
 
 export const CANVAS_LONG_SIDE = 1000;
+/** The worker downscales images to this long side before the pipeline runs. */
+export const MAX_SIDE = 1600;
 export const MAX_ROOMS = 80;
 export const MAX_WALLS = 600;
 
@@ -287,12 +289,20 @@ export function dropStairs(lines: Line[], maxStep: number, tol: number): Line[] 
  */
 export function doorBridges(lines: Line[], tolC: number, snapTol: number, maxGap: number): Line[] {
 	const out: Line[] = [];
-	const touches = (l: Line, v: number) =>
-		lines.some((p) => p.horizontal !== l.horizontal && Math.abs(p.c - v) <= snapTol && l.c >= p.s0 - snapTol && l.c <= p.s1 + snapTol);
+	// An end on a perpendicular line that continues past it (a T) is closed; an end at a corner
+	// (L, the perpendicular stops there too) or a free end may still face a doorway.
+	const closedEnd = (l: Line, v: number) =>
+		lines.some(
+			(p) =>
+				p.horizontal !== l.horizontal &&
+				Math.abs(p.c - v) <= snapTol &&
+				l.c > p.s0 + snapTol &&
+				l.c < p.s1 - snapTol
+		);
 	for (const l of lines) {
 		for (const dir of [-1, 1] as const) {
 			const end = dir < 0 ? l.s0 : l.s1;
-			if (touches(l, end)) continue;
+			if (closedEnd(l, end)) continue;
 			let best = maxGap + 1;
 			// collinear neighbour beyond this end
 			for (const m of lines) {
@@ -300,11 +310,11 @@ export function doorBridges(lines: Line[], tolC: number, snapTol: number, maxGap
 				const gap = dir > 0 ? m.s0 - end : end - m.s1;
 				if (gap > 0 && gap < best) best = gap;
 			}
-			// perpendicular line ahead
+			// perpendicular line ahead (not the one this end sits on)
 			for (const p of lines) {
 				if (p.horizontal === l.horizontal || l.c < p.s0 - snapTol || l.c > p.s1 + snapTol) continue;
 				const gap = dir > 0 ? p.c - end : end - p.c;
-				if (gap > 0 && gap < best) best = gap;
+				if (gap > snapTol && gap < best) best = gap;
 			}
 			if (best <= maxGap) {
 				const s0 = dir > 0 ? end : end - best;
@@ -575,7 +585,8 @@ export function runPipeline(cv: CV, img: Raster, onStage: (stage: string, pct: n
 		// 5. Rooms: free space between the vector walls plus door bridges (gaps in a straight wall,
 		// or a wall end short of a perpendicular wall), inside the envelope.
 		onStage('Finding rooms', 82);
-		const doorMax = envLong * 0.075;
+		// doors are ~0.8-1.0 m, ~6-7% of a typical 15 m building
+		const doorMax = envLong * 0.07;
 		const bridges = doorBridges(lines, tolC, snapTol, doorMax);
 		const vec = track(new cv.Mat(H, W, cv.CV_8UC1, new cv.Scalar(0)));
 		const vd = vec.data as Uint8Array;
@@ -809,6 +820,12 @@ export function runPipeline(cv: CV, img: Raster, onStage: (stage: string, pct: n
 	} finally {
 		for (const m of mats) m.delete();
 	}
+}
+
+/** Scale factor that brings the longest image side down to `max` (never upscales). */
+export function downscaleFactor(w: number, h: number, max = MAX_SIDE): number {
+	const long = Math.max(w, h);
+	return long > max ? max / long : 1;
 }
 
 function minCorner(points: Point[]): Point {

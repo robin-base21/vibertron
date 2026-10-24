@@ -5,13 +5,17 @@ import { stationIds, type Blueprint, type LiveSnapshotDTO, type MessageDTO, type
 export const fixtureBlueprint: Blueprint = {
 	schemaVersion: 1,
 	canvas: { w: 1000, h: 625 },
-	walls: [],
-	outlines: [
-		{ id: 'o1', kind: 'wall', closed: true, points: [[40, 40], [960, 40], [960, 585], [40, 585]] },
-		{ id: 'o2', kind: 'wall', closed: false, points: [[520, 40], [520, 250]] },
-		{ id: 'o3', kind: 'wall', closed: false, points: [[520, 330], [520, 585]] },
-		{ id: 'o4', kind: 'room', closed: true, points: [[60, 470], [180, 470], [180, 570], [60, 570]] }
+	walls: [
+		{ id: 'w1', a: [40, 40], b: [960, 40] },
+		{ id: 'w2', a: [960, 40], b: [960, 585] },
+		{ id: 'w3', a: [960, 585], b: [40, 585] },
+		{ id: 'w4', a: [40, 585], b: [40, 40] },
+		{ id: 'w5', a: [520, 40], b: [520, 250] },
+		{ id: 'w6', a: [520, 330], b: [520, 585] },
+		{ id: 'w7', a: [40, 450], b: [200, 450] },
+		{ id: 'w8', a: [200, 450], b: [200, 520] }
 	],
+	outlines: [{ id: 'r1', kind: 'room', closed: true, label: 'Kitchen', points: [[40, 450], [200, 450], [200, 585], [40, 585]] }],
 	segments: [
 		{
 			id: 'seg_hall_a',

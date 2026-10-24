@@ -49,12 +49,12 @@
 	let exportSvg = $state<SVGSVGElement>();
 	let importing = $state(false);
 
-	function acceptDraft(draft: BlueprintT) {
-		editor.apply(draft);
+	function acceptDraft(next: BlueprintT) {
+		editor.apply(next);
 		editor.selectedId = null;
 		showUnderlay = true;
 		importing = false;
-		toasts.success(`Draft applied: ${draft.segments.length} segments. Review names and confirm counts.`);
+		toasts.success(`Draft applied: ${next.walls.length} walls, ${next.segments.length} segments. Review names and set station counts.`);
 	}
 
 	// The backend rejects saves while the event runs; make that obvious instead of failing on save.

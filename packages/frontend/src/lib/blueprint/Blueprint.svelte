@@ -6,7 +6,8 @@
 	import TeamTag from './TeamTag.svelte';
 	import TitleBlock from './TitleBlock.svelte';
 	import { underlayUrl } from './api';
-	import { ACCENT, INK, PAPER, secondary, type RenderCtx } from './types';
+	import { roomLabels } from './geometry';
+	import { ACCENT, FONT_LABEL, INK, PAPER, secondary, wallStroke, type RenderCtx } from './types';
 
 	interface Props {
 		blueprint: Blueprint;
@@ -16,7 +17,10 @@
 		highlightTeamId?: string;
 		/** Editor selection, drawn like a highlight. */
 		selectedSegmentId?: string;
-		/** Hide a segment's label (while it is being renamed inline). */
+		/** Editor selection of a wall / labelled room outline. */
+		selectedWallId?: string;
+		selectedRoomId?: string;
+		/** Hide a segment's or room's label (while it is being renamed inline). */
 		hideLabelFor?: string;
 		showUnderlay?: boolean;
 		showTitleBlock?: boolean;
@@ -34,6 +38,8 @@
 		highlightSegmentId,
 		highlightTeamId,
 		selectedSegmentId,
+		selectedWallId,
+		selectedRoomId,
 		hideLabelFor,
 		showUnderlay = false,
 		showTitleBlock = true,
@@ -65,6 +71,15 @@
 	});
 	const placements = $derived(teamPlacements(blueprint.segments, teams));
 	const occupied = $derived(new Set(placements.flatMap((p) => [...p.stationIds])));
+	const decorative = $derived(blueprint.outlines.filter((o) => !o.label));
+	const rooms = $derived(roomLabels(blueprint.outlines));
+	/** Underlay placement: the crop region of the image fills the canvas. */
+	const under = $derived.by(() => {
+		const c = blueprint.underlay?.crop ?? { x: 0, y: 0, w: 1, h: 1 };
+		const w = cw / c.w;
+		const h = ch / c.h;
+		return { x: -c.x * w, y: -c.y * h, w, h };
+	});
 	/** Hide the 10-unit grid when it would be denser than ~4 px. */
 	const minorGrid = $derived(scale * 10 >= 4);
 </script>
@@ -86,6 +101,7 @@
 			<pattern id="{uid}-grid100" width="100" height="100" patternUnits="userSpaceOnUse">
 				<path d="M 100 0 L 0 0 0 100" fill="none" stroke={ctx.fg} stroke-opacity="0.08" stroke-width={ctx.u} />
 			</pattern>
+			<clipPath id="{uid}-canvas"><rect width={cw} height={ch} /></clipPath>
 			<filter id="{uid}-tex" x="0" y="0" width="100%" height="100%">
 				<feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch" />
 				<feColorMatrix type="saturate" values="0" />
@@ -96,8 +112,11 @@
 		{#if showUnderlay && blueprint.underlay}
 			<image
 				href={underlayUrl(blueprint.underlay.imageRef)}
-				width={cw}
-				height={ch}
+				x={under.x}
+				y={under.y}
+				width={under.w}
+				height={under.h}
+				clip-path="url(#{uid}-canvas)"
 				preserveAspectRatio="none"
 				opacity={blueprint.underlay.opacity}
 				style={invert ? undefined : 'filter: invert(1) grayscale(1)'}
@@ -109,13 +128,49 @@
 		<rect width={cw} height={ch} fill="url(#{uid}-grid100)" />
 		<rect width={cw} height={ch} filter="url(#{uid}-tex)" opacity="0.04" />
 
-		<g class="bp-outlines" fill="none" stroke={ctx.fg} stroke-opacity="0.6" stroke-width={secondary(ctx)}>
-			{#each blueprint.outlines as o (o.id)}
+		<!-- legacy/decorative traces: kept faint, the walls are the drawing -->
+		<g class="bp-outlines" fill="none" stroke={ctx.fg} stroke-opacity="0.2" stroke-width={secondary(ctx)}>
+			{#each decorative as o (o.id)}
 				{#if o.closed}
 					<polygon points={pointsAttr(o.points)} />
 				{:else}
 					<polyline points={pointsAttr(o.points)} />
 				{/if}
+			{/each}
+		</g>
+
+		<g class="bp-rooms">
+			{#each rooms as r (r.outline.id)}
+				{@const sel = r.outline.id === selectedRoomId}
+				<polygon
+					points={pointsAttr(r.outline.points)}
+					fill={sel ? ctx.accent : 'none'}
+					fill-opacity={sel ? 0.12 : 0}
+					stroke={sel ? ctx.accent : ctx.fg}
+					stroke-opacity={sel ? 1 : 0.3}
+					stroke-width={secondary(ctx)}
+					stroke-dasharray="{4 * ctx.u * ctx.boost} {3 * ctx.u * ctx.boost}"
+				/>
+				{#if r.outline.id !== hideLabelFor}
+					<text
+						x={r.at[0]}
+						y={r.at[1]}
+						font-family={FONT_LABEL}
+						font-weight="600"
+						font-size={Math.max(r.size, 11 * ctx.u)}
+						letter-spacing="0.08em"
+						text-anchor="middle"
+						dominant-baseline="central"
+						fill={sel ? ctx.accent : ctx.fg}
+						fill-opacity="0.75">{r.outline.label!.toUpperCase()}</text
+					>
+				{/if}
+			{/each}
+		</g>
+
+		<g class="bp-walls" stroke={ctx.fg} stroke-width={wallStroke(ctx)} stroke-linecap="square">
+			{#each blueprint.walls as w (w.id)}
+				<line x1={w.a[0]} y1={w.a[1]} x2={w.b[0]} y2={w.b[1]} stroke={w.id === selectedWallId ? ctx.accent : undefined} />
 			{/each}
 		</g>
 

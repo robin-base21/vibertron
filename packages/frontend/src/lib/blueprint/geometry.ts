@@ -1,4 +1,5 @@
-import { bounds, stationIds, stationPositions, type Point, type Segment, type TeamDTO } from 'common';
+import { bounds, stationIds, stationPositions, type Outline, type Point, type Segment, type TeamDTO } from 'common';
+import { labelSpot } from '../floorplan/marked';
 
 // Pure drawing helpers shared by the read-only renderer and the editor.
 
@@ -128,4 +129,21 @@ export function pointInPolygon(p: Point, poly: Point[]): boolean {
 
 export function uid(prefix = 'seg'): string {
 	return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export interface RoomLabel {
+	outline: Outline;
+	at: Point;
+	/** Font size in canvas units (before the renderer's minimum). */
+	size: number;
+}
+
+/** Labelled outlines (non-work rooms) with a label spot inside each. */
+export function roomLabels(outlines: Outline[]): RoomLabel[] {
+	return outlines
+		.filter((o) => o.label && o.points.length > 2)
+		.map((o) => {
+			const { at, clearance } = labelSpot(o.points);
+			return { outline: o, at, size: Math.max(8, Math.min(20, clearance * 0.45)) };
+		});
 }

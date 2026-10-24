@@ -17,3 +17,4 @@ export const PAPER = '#0a0a0a';
 
 export const structural = (c: RenderCtx) => 1.75 * c.boost * c.u;
 export const secondary = (c: RenderCtx) => 0.75 * c.boost * c.u;
+export const wallStroke = (c: RenderCtx) => 2.4 * c.boost * c.u;

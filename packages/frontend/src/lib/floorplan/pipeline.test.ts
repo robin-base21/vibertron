@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import cvImport from '@techstark/opencv-js';
+import { insidePolygon, roomPolygon } from './marked';
 import { runPipeline, simplifyOrtho, traceCells } from './pipeline';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,12 +77,22 @@ test('blue-grid fixture: envelope, walls and rooms', async () => {
 		}
 	}
 
-	// the top-left dining table (~209,192 172x115 px) is not a room
-	const table = { x: 209, y: 192, w: 172, h: 115 };
-	for (const room of r.rooms) {
+	const pxBoxes = r.rooms.map((room) => {
 		const xs = room.points.map((p) => toPx(p[0], p[1])[0]);
 		const ys = room.points.map((p) => toPx(p[0], p[1])[1]);
-		const b = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+		return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+	});
+
+	// the stair/corridor core (x 490..630, y 245..600 px) is its own room, not part of the open plan
+	const core = pxBoxes.filter((b) => near(b.x, 490, 15) && near(b.x + b.w, 630, 15) && near(b.y, 245, 15) && near(b.y + b.h, 600, 15));
+	expect(core).toHaveLength(1);
+	const bigIdx = pxBoxes.reduce((m, b, i) => (b.w * b.h > pxBoxes[m]!.w * pxBoxes[m]!.h ? i : m), 0);
+	const coreCenter: [number, number] = [(560 - e.x) / s, (420 - e.y) / s];
+	expect(insidePolygon(coreCenter, roomPolygon(r.rooms[bigIdx]!))).toBe(false);
+
+	// the top-left dining table (~209,192 172x115 px) is not a room
+	const table = { x: 209, y: 192, w: 172, h: 115 };
+	for (const b of pxBoxes) {
 		const sameAsTable = near(b.x, table.x, 25) && near(b.y, table.y, 25) && near(b.w, table.w, 35) && near(b.h, table.h, 35);
 		expect(sameAsTable).toBe(false);
 	}
