@@ -7,11 +7,13 @@
     "dev": "bun run --watch index.ts",
     "start": "bun run index.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "bun run src/db/migrate.ts"
+    "db:migrate": "bun run src/db/migrate.ts",
+    "seed": "bun run src/db/seed.ts"
   },
   "dependencies": {
     "common": "workspace:*",
-    "drizzle-orm": "^0.45.4"
+    "drizzle-orm": "^0.45.4",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bun": "latest",

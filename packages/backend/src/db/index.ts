@@ -2,12 +2,20 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
-import { env } from '../env';
+import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
 import * as schema from './schema';
 
-mkdirSync(dirname(env.databasePath), { recursive: true });
+export type DB = ReturnType<typeof openDb>;
 
-const sqlite = new Database(env.databasePath, { create: true });
-sqlite.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+export const migrationsFolder = `${import.meta.dir}/../../drizzle`;
 
-export const db = drizzle(sqlite, { schema });
+export function openDb(path: string) {
+	if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+	const sqlite = new Database(path, { create: true });
+	sqlite.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+	return drizzle(sqlite, { schema });
+}
+
+export function migrateDb(db: DB) {
+	migrate(db, { migrationsFolder });
+}
