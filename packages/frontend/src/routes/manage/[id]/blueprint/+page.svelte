@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
-	import { totalStations, unconfirmedSegments } from 'common';
+	import { totalStations, unconfirmedSegments, type Blueprint as BlueprintT } from 'common';
 	import {
 		ArrowLeft,
 		Download,
@@ -18,6 +18,7 @@
 		Undo2
 	} from '@lucide/svelte';
 	import Blueprint from '$lib/blueprint/Blueprint.svelte';
+	import ImportDialog from '$lib/floorplan/ImportDialog.svelte';
 	import EditorCanvas from '$lib/blueprint/editor/EditorCanvas.svelte';
 	import MarkupPanel from '$lib/blueprint/editor/MarkupPanel.svelte';
 	import SegmentPanel from '$lib/blueprint/editor/SegmentPanel.svelte';
@@ -45,6 +46,15 @@
 	let canvas = $state<ReturnType<typeof EditorCanvas>>();
 	let exporting = $state(false);
 	let exportSvg = $state<SVGSVGElement>();
+	let importing = $state(false);
+
+	function acceptDraft(draft: BlueprintT) {
+		editor.apply(draft);
+		editor.selectedId = null;
+		showUnderlay = true;
+		importing = false;
+		toasts.success(`Draft applied: ${draft.segments.length} segments. Review names and confirm counts.`);
+	}
 
 	const dirty = $derived(JSON.stringify(editor.bp) !== savedJson);
 	const unconfirmed = $derived(unconfirmedSegments(editor.bp));
@@ -237,7 +247,7 @@
 			</div>
 		{/if}
 		<div class="ml-auto flex flex-wrap gap-2">
-			<button class="btn btn-sm btn-outline bp-label" disabled title="Import floorplan">
+			<button class="btn btn-sm btn-outline bp-label" onclick={() => (importing = true)} title="Import floorplan">
 				<ImageUp size={14} /> Import floorplan
 			</button>
 			<button class={['btn btn-sm bp-label', invert ? 'btn-primary' : 'btn-ghost']} onclick={() => (invert = !invert)} title="Invert for print">
@@ -309,6 +319,16 @@
 	<div class="pointer-events-none fixed top-0 -left-[9999px] w-[1600px]" aria-hidden="true">
 		<Blueprint blueprint={editor.bp} {invert} bind:svg={exportSvg} />
 	</div>
+{/if}
+
+{#if importing}
+	<ImportDialog
+		eventId={data.eventId}
+		current={editor.bp}
+		offline={data.fixture}
+		onaccept={acceptDraft}
+		onclose={() => (importing = false)}
+	/>
 {/if}
 
 {#if conflict}
