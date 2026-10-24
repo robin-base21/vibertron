@@ -175,38 +175,78 @@ Both additive, both made in the follow-ups at the coordinator's request.
 - `api.ts`: optional `AnalyzeBody.canvas: { w, h }` (each positive, at most 10 000). It defaults to 1000×1000 on the backend, so older clients are unaffected.
 - `blueprint.ts`: `stationPositions(segment, pad = 12, top = 0)`. The new `top` reserves a band at the top of the segment; the default keeps the old behaviour. New test file: `blueprint.test.ts`.
 
-## Round 3: floorplan import v2 + editable walls (in progress)
+## Round 3: floorplan import v2 + editable walls
 
-**Done (committed on `ws/blueprint`)**
-- `src/lib/floorplan/pipeline.ts` is pure: `runPipeline(cv, raster)` returns `{canvas, crop, envelope, walls, rooms}`.
-  - Ink mask: median background, contrast plus low saturation, with an Otsu fallback.
-  - Wall mask: long-line open/close.
-  - Envelope crop.
-  - Run-length wall vectorization. Double-line walls are paired; in double-line plans the single lines (furniture) are dropped. Stair treads are removed. Lines are merged, snapped at junctions and split at T/X junctions.
-  - Rooms: connected components between the vector walls plus door bridges (up to 7% of the envelope long side, including L-corner ends). Shapes are traced on a cell grid, so they are rects or orthogonal polygons with no diagonals, and their edges snap to walls. Furniture nesting is checked only for single-line plans.
-- `pipeline.test.ts` runs on `blue-grid.png` (opencv-js + pngjs) in about 0.3 s. It checks:
-  - the envelope is within ±1%;
-  - there are ≥ 4 rooms;
+**CV pipeline** (`src/lib/floorplan/pipeline.ts`)
+- `runPipeline(cv, raster)` is pure and returns `{canvas, crop, envelope, walls, rooms}`.
+- Ink mask: median background, then contrast plus low saturation, with an Otsu fallback.
+- Wall mask: long-line open/close. Envelope: crop to the building.
+- Wall vectorization:
+  - run-length bands, merged;
+  - double-line walls paired; in double-line plans unpaired single lines (furniture) are dropped;
+  - stair treads removed;
+  - junction snap, then split at T/X junctions;
+  - short free-floating lines dropped.
+- Rooms: connected free space between the vector walls plus door bridges. Bridges close gaps up to 7% of the envelope long side, from free ends and L-corner ends.
+- Room shapes: traced on a cell grid with holes filled, so only rects or orthogonal polygons come out. Edges snap to walls. Nested furniture is checked in single-line plans only.
+
+**Tests**
+- `pipeline.test.ts` (blue-grid.png, opencv-js + pngjs, about 0.3 s) checks:
+  - envelope within ±1%;
+  - ≥ 4 rooms;
   - the dining table is not a room;
   - the stair/corridor core is its own room, outside the open plan;
-  - there are ≥ 20 walls and all are axis-aligned;
-  - polygons are orthogonal.
-- Worker (`detect.worker.ts` / `detect.ts`): runs the pipeline and renders the Set-of-Marks JPEG (`marked.ts`, numbers `i + ROOM_MARK_BASE`). The dialog uploads it, then calls analyze v2 with `{imageRef, markedImageRef, crop, canvas, rooms, walls}`. The fallback is `localDraft` ("Area N").
-- Import preview: shows the draft over the underlay. It has "Replace walls" and "Replace segments & rooms" toggles (`applyDraft` rescales whatever is kept) and an optional overlay of the detected rooms.
-- Renderer:
-  - walls are drawn as structural lines;
-  - labelled outlines are drawn as dashed rooms with small labels;
-  - legacy outlines are faint;
-  - the underlay is positioned by `crop` and clipped to the canvas.
-- The fixture blueprint now uses walls and a labelled Kitchen.
-- Gates at this point: `bun test` 53 pass; typecheck and check are clean.
+  - ≥ 20 walls, all axis-aligned;
+  - polygons orthogonal.
+- `ortho.test.ts` covers orthogonalize, wall snapping and `snapToWalls`.
+- `draft.test.ts` covers `localDraft` v2 and `applyDraft`.
 
-**Not done yet**
-- §4 editor:
-  - Walls tool (orthogonal by default, Alt for free angle), wall select/move/endpoint drag/Delete, snapping to endpoints, lines and the grid.
-  - Vertex select + Delete.
-  - Convert to rect / Orthogonalize.
-  - Segment edges snapping to walls.
-  - Room label rename/move/delete.
-- Visual check of the editor after a real import.
-- `bun run test:e2e` has not been re-run this round.
+**Import**
+- The worker (`detect.worker.ts`) runs the pipeline and renders the Set-of-Marks JPEG (`marked.ts`, numbers `i + ROOM_MARK_BASE`, badge placed at the most interior point).
+- The dialog uploads the original and the marked image, then calls analyze v2 with `{imageRef, markedImageRef, crop, canvas, rooms, walls}`. The fallback is a local "Area N" draft.
+- Preview step:
+  - draft walls, zones and labelled rooms over the cropped underlay;
+  - optional "Show detected rooms" overlay with the numbers;
+  - "Replace walls" / "Replace segments & rooms" toggles, shown only when the blueprint already has content. `applyDraft` rescales whatever is kept onto the new canvas.
+
+**Renderer**
+- Walls are drawn as structural lines.
+- Labelled outlines are dashed rooms with small uppercase labels.
+- Legacy outlines are faint (20%).
+- The underlay is placed by `crop`, so the crop region fills the canvas, clipped to the canvas.
+- The fixture blueprint uses walls and a labelled Kitchen.
+
+**Editor**
+- Wall tool (W):
+  - drag draws an orthogonal wall; Alt draws at any angle;
+  - ends snap to other walls' endpoints, then lines, then the grid;
+  - the snap marker shows under the cursor, and the length shows while drawing;
+  - the tool stays active for chaining.
+- Select a wall: drag moves it, end handles resize it (staying straight unless Alt), arrows nudge, Delete removes it. Dragging an end down to nothing deletes the wall.
+- Polygons:
+  - double-click an edge to add a vertex (it gets selected);
+  - click a vertex then Delete (or Alt+click) to remove it;
+  - "To rect" and "Orthogonalize" buttons in the panel (Orthogonalize becomes a rect when 4 vertices remain).
+- Segment rect handles, vertices, drawn rects and polygon points snap their x/y to parallel walls within 8 px, else to the grid. Alt disables snapping.
+- Room labels: select by clicking the room or its label; double-click or Enter renames inline; the panel has a text field; drag moves; arrows nudge; Delete removes.
+- Selection is one at a time (segment / wall / room / vertex). The panel tab is now "Selection". Everything goes through checkpoints, so undo/redo covers it.
+- Markup round-trips `wall` and `room` through common's parser. The live/ended lock shows the read-only renderer with walls, and tools are disabled.
+
+**Verification**
+- Playwright run on the fixture editor (`?fixture`), all checks OK:
+  - draw an orthogonal wall; endpoint snap to (520,250); Alt free angle;
+  - select/delete/undo a wall; endpoint drag stays straight; move a wall;
+  - add and delete a polygon vertex; Orthogonalize; To rect;
+  - a rect handle snapped to the wall at x = 520;
+  - room rename, move and delete;
+  - markup shows walls/rooms, and adding a wall via markup applies;
+  - live lock notice with tools disabled.
+- Import of `blue-grid.png` in the real editor:
+  - mocked AI analyze: draft in about 1.8 s; the body carries canvas 1000×529, crop, 6 rooms, 26 walls and a marked image (checked visually: numbered 1–6, readable). Walls line up with the cropped underlay, zones and room labels render, and save keeps walls, rooms and crop;
+  - real backend without an API key: the fallback gives 6 "Area N" segments and 26 walls.
+- Gates: `bun test` 57 pass, typecheck and check clean, `bun run test:e2e` 1 passed.
+
+**Known gaps**
+- The title block sits in the bottom-right of the canvas, so on full-bleed imported plans it can cover content.
+- In very small segments (WCs) the name and count labels can overlap.
+- A room that sits entirely under a segment can only be selected through its label.
