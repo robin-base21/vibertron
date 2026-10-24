@@ -38,6 +38,7 @@
 				blueprint={snap.blueprint}
 				{teams}
 				highlightTeamId={liveEvent.flashTeamId ?? undefined}
+				showUnderlay
 				class="h-full w-full"
 			/>
 		{:else}
