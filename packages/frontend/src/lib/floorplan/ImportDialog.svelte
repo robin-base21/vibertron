@@ -104,11 +104,21 @@
 			const res = await blueprints.analyze(
 				eventId,
 				geometry
-					? { imageRef, markedImageRef, crop: geometry.crop, canvas: geometry.canvas, rooms: geometry.rooms, walls: geometry.walls }
+					? {
+							imageRef,
+							markedImageRef,
+							crop: geometry.crop,
+							canvas: geometry.canvas,
+							rooms: geometry.rooms,
+							walls: geometry.walls
+						}
 					: { imageRef }
 			);
 			analyze = res.source === 'ai' ? 'done' : 'warn';
-			warning = res.source === 'fallback' ? (res.warning ?? 'AI labelling was unavailable; areas are unnamed.') : '';
+			warning =
+				res.source === 'fallback'
+					? (res.warning ?? 'AI labelling was unavailable; areas are unnamed.')
+					: '';
 			draft = fitDraft(res.blueprint, current.titleBlock);
 		} catch (e) {
 			analyze = 'warn';
@@ -120,7 +130,8 @@
 
 	function finish() {
 		if (!draft) {
-			fatal = 'Nothing usable was detected in this image. Try a sharper image or draw the segments by hand.';
+			fatal =
+				'Nothing usable was detected in this image. Try a sharper image or draw the segments by hand.';
 			phase = 'failed';
 			return;
 		}
@@ -139,7 +150,9 @@
 		walls: current.walls.length > 0 || current.outlines.some((o) => !o.label),
 		segments: current.segments.length > 0 || current.outlines.some((o) => o.label)
 	});
-	const result = $derived(draft ? applyDraft(current, draft, { walls: replaceWalls, segments: replaceSegments }) : null);
+	const result = $derived(
+		draft ? applyDraft(current, draft, { walls: replaceWalls, segments: replaceSegments }) : null
+	);
 	const cvRooms = $derived(
 		(run?.geometry?.rooms ?? []).map((r, i) => {
 			const poly = roomPolygon(r);
@@ -154,15 +167,23 @@
 			state: detect,
 			note: detect === 'running' ? `${detectStage} · ${detectPct}%` : detectNote
 		},
-		{ label: 'Label areas (AI)', state: analyze, note: analyze === 'running' ? 'asking the model…' : '' }
+		{
+			label: 'Label areas (AI)',
+			state: analyze,
+			note: analyze === 'running' ? 'asking the model…' : ''
+		}
 	]);
 </script>
 
 <dialog class="modal" open aria-labelledby="import-title">
-	<div class="modal-box flex max-h-[92vh] w-11/12 max-w-5xl flex-col gap-4 border border-bp-line/60">
+	<div
+		class="modal-box flex max-h-[92vh] w-11/12 max-w-5xl flex-col gap-4 border border-bp-line/60"
+	>
 		<div class="flex items-center gap-3">
-			<h3 id="import-title" class="bp-label mr-auto text-lg font-semibold">Import floorplan</h3>
-			<button class="btn btn-ghost btn-sm btn-square" onclick={onclose} aria-label="Close"><X size={16} /></button>
+			<h3 id="import-title" class="mr-auto bp-label text-lg font-semibold">Import floorplan</h3>
+			<button class="btn btn-square btn-ghost btn-sm" onclick={onclose} aria-label="Close"
+				><X size={16} /></button
+			>
 		</div>
 
 		{#if phase === 'pick'}
@@ -184,12 +205,20 @@
 			>
 				<ImageUp size={32} class="opacity-70" />
 				<span class="bp-label text-xl">Drop a floorplan image or click to choose</span>
-				<span class="font-mono text-xs opacity-60">PNG · JPEG · GIF · WEBP · ≤ 15 MB · phone photo, PDF screenshot or CAD export</span>
-				<input type="file" accept={ACCEPT} class="hidden" onchange={(e) => onFiles(e.currentTarget.files)} />
+				<span class="font-mono text-xs opacity-60"
+					>PNG · JPEG · GIF · WEBP · ≤ 15 MB · phone photo, PDF screenshot or CAD export</span
+				>
+				<input
+					type="file"
+					accept={ACCEPT}
+					class="hidden"
+					onchange={(e) => onFiles(e.currentTarget.files)}
+				/>
 			</label>
 			<p class="text-sm opacity-60">
-				The image becomes the underlay, cropped to the building. Walls and rooms are traced in your browser, then the AI
-				names the rooms and splits open-plan space into work zones. You set the station counts afterwards.
+				The image becomes the underlay, cropped to the building. Walls and rooms are traced in your
+				browser, then the AI names the rooms and splits open-plan space into work zones. You set the
+				station counts afterwards.
 			</p>
 		{:else if phase === 'working' || phase === 'failed'}
 			<ol class="flex flex-col gap-2">
@@ -198,7 +227,10 @@
 						<span class="w-5">
 							{#if s.state === 'running'}<LoaderCircle size={16} class="animate-spin" />
 							{:else if s.state === 'done'}<Check size={16} />
-							{:else if s.state === 'warn' || s.state === 'error'}<TriangleAlert size={16} class="text-bp-accent" />
+							{:else if s.state === 'warn' || s.state === 'error'}<TriangleAlert
+									size={16}
+									class="text-bp-accent"
+								/>
 							{/if}
 						</span>
 						<span class={['bp-label', s.state === 'idle' && 'opacity-40']}>{s.label}</span>
@@ -212,8 +244,11 @@
 			{#if phase === 'failed'}
 				<p class="border border-bp-accent/60 p-3 text-sm" role="alert">{fatal}</p>
 				<div class="modal-action mt-0">
-					<button class="btn btn-sm btn-ghost bp-label" onclick={onclose}>Close</button>
-					<button class="btn btn-sm btn-outline bp-label" onclick={() => ((phase = 'pick'), (fatal = ''))}>Try another image</button>
+					<button class="btn btn-ghost bp-label btn-sm" onclick={onclose}>Close</button>
+					<button
+						class="btn btn-outline bp-label btn-sm"
+						onclick={() => ((phase = 'pick'), (fatal = ''))}>Try another image</button
+					>
 				</div>
 			{/if}
 		{:else if phase === 'review' && draft && result}
@@ -223,7 +258,10 @@
 					{warning}
 				</p>
 			{/if}
-			<div class="min-h-0 flex-1 overflow-auto border border-bp-line/40" data-testid="import-preview">
+			<div
+				class="min-h-0 flex-1 overflow-auto border border-bp-line/40"
+				data-testid="import-preview"
+			>
 				<Blueprint blueprint={result} showUnderlay showTitleBlock={false} class="w-full">
 					{#snippet overlay(ctx)}
 						{#if showCvRooms}
@@ -250,16 +288,20 @@
 				</Blueprint>
 			</div>
 			<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-				<label class="flex cursor-pointer items-center gap-2">
-					<input type="checkbox" class="toggle toggle-sm" bind:checked={replaceWalls} disabled={!hasCurrent.walls} />
-					<span class="bp-label text-sm">Replace walls</span>
-					<span class="font-mono text-xs opacity-60">{draft.walls.length}</span>
-				</label>
-				<label class="flex cursor-pointer items-center gap-2">
-					<input type="checkbox" class="toggle toggle-sm" bind:checked={replaceSegments} disabled={!hasCurrent.segments} />
-					<span class="bp-label text-sm">Replace segments &amp; rooms</span>
-					<span class="font-mono text-xs opacity-60">{draft.segments.length} + {draft.outlines.filter((o) => o.label).length}</span>
-				</label>
+				{#if hasCurrent.walls || hasCurrent.segments}
+					<label class="flex cursor-pointer items-center gap-2">
+						<input type="checkbox" class="toggle toggle-sm" bind:checked={replaceWalls} />
+						<span class="bp-label text-sm">Replace walls</span>
+						<span class="font-mono text-xs opacity-60">{draft.walls.length}</span>
+					</label>
+					<label class="flex cursor-pointer items-center gap-2">
+						<input type="checkbox" class="toggle toggle-sm" bind:checked={replaceSegments} />
+						<span class="bp-label text-sm">Replace segments &amp; rooms</span>
+						<span class="font-mono text-xs opacity-60"
+							>{draft.segments.length} + {draft.outlines.filter((o) => o.label).length}</span
+						>
+					</label>
+				{/if}
 				{#if cvRooms.length}
 					<label class="flex cursor-pointer items-center gap-2">
 						<input type="checkbox" class="toggle toggle-sm" bind:checked={showCvRooms} />
@@ -267,15 +309,16 @@
 					</label>
 				{/if}
 				<span class="ml-auto font-mono text-xs opacity-70">
-					{result.walls.length} WALLS · {result.segments.length} SEGMENTS · {totalStations(result)} STATIONS · CANVAS {result.canvas.w}×{result.canvas.h}
+					{result.walls.length} WALLS · {result.segments.length} SEGMENTS · {totalStations(result)} STATIONS
+					· CANVAS {result.canvas.w}×{result.canvas.h}
 				</span>
 			</div>
 			<div class="modal-action mt-0 flex-wrap">
 				<span class="mr-auto self-center text-sm opacity-60">
 					Station counts start at 0 and unconfirmed. Undo with Ctrl+Z after accepting.
 				</span>
-				<button class="btn btn-sm btn-ghost bp-label" onclick={onclose}>Discard</button>
-				<button class="btn btn-sm btn-primary bp-label" onclick={() => onaccept(result)}>
+				<button class="btn btn-ghost bp-label btn-sm" onclick={onclose}>Discard</button>
+				<button class="btn bp-label btn-primary btn-sm" onclick={() => onaccept(result)}>
 					Accept draft
 				</button>
 			</div>
