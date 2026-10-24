@@ -120,7 +120,7 @@ Each phase lists parallel **workstreams** (one subagent each) with the files the
 - Template fixes: the missing env import in the WS store (now `$lib/env.ts` via `$env/dynamic/public`), the FastVote/username gate removed, Dockerfiles built from the repo root so `common` is included, vite pinned to :3000.
 - **Done:** `bun install`, `bun test`, `bun run check`, `bun run db:generate`/`db:migrate` and `bun run dev` all work, and `common` imports work in the backend and in the frontend's server render.
 
-### Phase 1: Foundations
+### Phase 1: Foundations ✅
 | WS | Owns | Deliverables |
 |---|---|---|
 | **1A common** | `packages/common/src/**` | `blueprint.ts` (schema + station ID helpers), `markup.ts` (parse/serialize + round-trip tests), `teams.ts` (algorithm + tests), `api.ts` (DTOs), `ws.ts` (event union), `joinCode.ts` (window math only; HMAC stays on the server) |
@@ -129,7 +129,7 @@ Each phase lists parallel **workstreams** (one subagent each) with the files the
 
 **Acceptance:** an admin logs in, creates a manager, and the manager logs in and sees an empty dashboard. Common tests pass.
 
-### Phase 2: Events and joining
+### Phase 2: Events and joining ✅
 | WS | Owns | Deliverables |
 |---|---|---|
 | **2A backend** | `backend/src/routes/{events,invites,join,pairings}.ts` | event CRUD (manager owns, admin sees all), invites, `GET /invites/:id/code` (rotating), `POST /join/:token` (validates code → attendee user + participant + session), friend codes, pairing request/accept/cancel, WS `participants.updated` |
@@ -137,7 +137,7 @@ Each phase lists parallel **workstreams** (one subagent each) with the files the
 
 **Acceptance:** scanning the QR on a phone joins the event. A link older than about 60 s requires the on-screen code. Two attendees can pair.
 
-### Phase 3: Blueprints
+### Phase 3: Blueprints ✅
 | WS | Owns | Deliverables |
 |---|---|---|
 | **3A renderer + editor** | `frontend/src/lib/blueprint/**`, `routes/manage/[event]/blueprint/**` | `<Blueprint>` SVG renderer (read-only mode for TV/attendee, with highlight props), editor: add/drag/resize segments, drag vertices and labels, inline rename (double-click), stations +/- and layout, confirm toggle, delete, undo/redo, markup tab (two-way sync, inline parse errors), underlay toggle, title block, invert for print |
@@ -145,7 +145,7 @@ Each phase lists parallel **workstreams** (one subagent each) with the files the
 
 **Acceptance:** upload a floorplan photo, get a draft within about 15 s (or a blank canvas with the underlay if it fails), fix it in under 2 minutes, confirm the counts and save. Markup ↔ visual round-trips losslessly.
 
-### Phase 4: Launch and live
+### Phase 4: Launch and live ✅
 | WS | Owns | Deliverables |
 |---|---|---|
 | **4A backend** | `backend/src/routes/{launch,teams,messages}.ts`, `backend/src/live/**` | launch (capacity check, transactional assignment, `live` + `endsAt`), end event, codename set (once per team, editable by members until ended), messages (requires codename, rate limit 1 per 10 s, 280 chars, manager hide), WS broadcasts, public snapshot endpoint for viewers |
@@ -154,7 +154,7 @@ Each phase lists parallel **workstreams** (one subagent each) with the files the
 
 **Acceptance:** a simulated event with 3 browsers + TV: launch → everyone sees their station, the TV shows teams and the countdown, codenames appear on the TV, messages flow live, and a hidden message disappears from the TV.
 
-### Phase 5: Admin and polish
+### Phase 5: Admin and polish ✅
 - Admin panel: users (promote/demote, reset password), all events, delete.
 - Docker compose with a sqlite volume, migrations on boot, production env docs.
 - Playwright e2e smoke test of the Phase 4 scenario. README.
