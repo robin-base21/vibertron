@@ -190,7 +190,7 @@ test('full voting flow: projects → group round (auto-close) → pitch round �
 	]);
 	expect(results.group[teamB.id][0]).toMatchObject({ projectId: pb2.id, points: 4 });
 	expect(results.group[teamC.id]).toHaveLength(1);
-	expect((await snapshot(slug)).voting.results.pitch[0].projectId).toBe(pb2.id);
+	expect((await snapshot(slug)).voting.results!.pitch[0]!.projectId).toBe(pb2.id);
 	expect((await vote(a2, slug, 'pitch', [pb2.id, pc1.id, pa1.id])).status).toBe(409);
 	expect((await action(mgr, event.id, 'close-pitch')).status).toBe(409);
 
