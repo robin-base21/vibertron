@@ -32,6 +32,8 @@ Sign in at http://localhost:3000/login with the admin account, then create a man
 3. Create an **invite**, then **Show QR on screen** on the venue display. The code rotates every 30 s, so only people in the room can join.
 4. Open the **TV** view on the big screen.
 5. **Launch**: pick a team size and duration. Teams are randomised, friends stay together, and everyone gets a workstation.
+6. Attendees name their own project on their phone during the build.
+7. **Voting** (on the event page): start team voting. Each team ranks its members' projects, and the top project of each team pitches. When every team has voted, the TV reveals the pitches and pitch voting opens. Close it to reveal the winner on the TV.
 
 ## Commands
 

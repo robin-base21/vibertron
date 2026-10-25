@@ -160,6 +160,20 @@ Each phase lists parallel **workstreams** (one subagent each) with the files the
 - Playwright e2e smoke test of the Phase 4 scenario. README.
 - Nice-to-haves: AI codename suggestions (OpenRouter), event recap page, sound/alerts on the TV at T-10 min.
 
+### Phase 6: Projects and voting
+Every attendee builds their own project (name + optional tagline). The team codename stays as the team's name. After the build, the manager runs two voting rounds (`events.voting_phase`: `none → group → pitch → results`):
+
+1. **Team voting.** The members of each team drag-rank their teammates' projects; nobody can rank their own. Teams with fewer than two projects don't vote (a single project goes straight through). The round closes automatically once every eligible member has voted, or when the manager force-closes it. Each team's top project pitches.
+2. **Pitch voting.** The TV reveals the pitching projects one by one. Every attendee on a team ranks the pitches except their own. The manager closes the round and the TV reveals the winner and the full ranking.
+
+Scoring (`common/src/voting.ts`, pure and unit-tested) is Borda on a fixed scale: with N candidates in the round, position i earns N − i. Ties go to more first places, then a seeded draw (`hashSeed(event.seed, teamId)`), shown as "decided by draw". Ballots can be changed until the round closes. Results are frozen in `voting_results` and hidden until the results phase.
+
+| Workstream | Owns | Deliverables |
+|---|---|---|
+| **6A backend** | `backend/src/routes/voting.ts`, schema/migration, `dto.ts` | projects and ballots tables, project upsert, ballot upsert with eligibility checks, auto-close, compare-and-set phase actions, WS `project.updated` / `voting.updated` |
+| **6B attendee + manager** | `RankList.svelte`, `LiveView.svelte`, `VotingPanel.svelte`, e2e | drag-and-drop ranking (touch + ▲/▼), project card, voting card per phase, manager voting panel, voting e2e |
+| **6C TV + viewer** | `lib/blueprint/live*`, `routes/e/[slug]/{tv,live}` | team-voting progress, staggered pitch reveal with team highlights, winner reveal and ranking |
+
 ## Coordination
 
 - The coordinator (main session) owns `ROADMAP.md`, `CLAUDE.md` and merges between phases. Workstreams run as subagents (herdr panes) in separate git worktrees, one branch per workstream (`p1/common`, `p1/backend`, ...).
