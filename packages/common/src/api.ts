@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Blueprint, Point } from './blueprint';
 import { Role } from './roles';
+import { VoteRound, VotingPhase, type TallyRow } from './voting';
 
 /*
 REST contract. All routes are under /api, JSON in/out, session cookie `vt_session`
@@ -39,6 +40,8 @@ Attendee (participant of the event)
   DELETE /api/pairings/:id                                       -> { ok: true }
   PATCH  /api/teams/:id                     CodenameBody         -> { team: TeamDTO }      (team member, event live)
   POST   /api/e/:slug/messages              MessageBody          -> { message: MessageDTO } (team has codename)
+  PUT    /api/e/:slug/project               ProjectBody          -> { project: ProjectDTO }  (on a team; live/ended; votingPhase none)
+  PUT    /api/e/:slug/ballot                BallotBody           -> { ok: true; voting: VotingStateDTO } (eligible voter; round = votingPhase)
 Blueprints (event manager)
   GET    /api/events/:id/blueprint                               -> { blueprint: Blueprint | null; version: number }
   PUT    /api/events/:id/blueprint          SaveBlueprintBody    -> { version: number }     (409 on version mismatch)
@@ -50,6 +53,8 @@ Launch / live (event manager)
   POST   /api/events/:id/launch             LaunchBody           -> { event: EventDTO; teams: TeamDTO[] }  (409 + ApiErrorBody on capacity)
   POST   /api/events/:id/end                                     -> { event: EventDTO }
   PATCH  /api/messages/:id                  ModerateBody         -> { message: MessageDTO }
+Voting (event manager; see common/src/voting.ts for the rules)
+  POST   /api/events/:id/voting             VotingActionBody     -> { event: EventDTO; voting: VotingStateDTO }
 Public (anyone)
   GET    /api/e/:slug/live                                       -> LiveSnapshotDTO
   GET    /api/health                                             -> { ok: true; time: number }
@@ -89,6 +94,7 @@ export interface PublicEventDTO {
 	durationMin: number | null;
 	startedAt: number | null;
 	endsAt: number | null;
+	votingPhase: VotingPhase;
 }
 
 export interface EventDTO extends PublicEventDTO {
@@ -157,6 +163,36 @@ export interface AttendeeContextDTO {
 	/** Present once live. */
 	stationId: string | null;
 	blueprint: Blueprint | null;
+	/** The attendee's own project (one per member). */
+	project: ProjectDTO | null;
+	/** The attendee's saved rankings (project ids, best first). */
+	ballots: { group?: string[]; pitch?: string[] };
+}
+
+export interface ProjectDTO {
+	id: string;
+	eventId: string;
+	teamId: string;
+	participantId: string;
+	authorName: string;
+	name: string;
+	tagline: string | null;
+}
+
+export interface VotingStateDTO {
+	phase: VotingPhase;
+	group: {
+		/** Teams that vote (two or more projects) and have every ballot in. */
+		teamsDone: number;
+		teamsTotal: number;
+		/** Every team; eligible 0 means the team does not vote. */
+		perTeam: { teamId: string; cast: number; eligible: number }[];
+	};
+	pitch: { cast: number; eligible: number };
+	/** Pitching projects in team order; empty before the pitch phase. */
+	pitches: ProjectDTO[];
+	/** Only in the results phase; running scores are never exposed earlier. */
+	results?: { group: Record<string, TallyRow[]>; pitch: TallyRow[] };
 }
 
 export interface MessageDTO {
@@ -177,6 +213,8 @@ export interface LiveSnapshotDTO {
 	/** Visible messages, newest last, at most 50. Managers of the event also get hidden ones. */
 	messages: MessageDTO[];
 	participantCount: number;
+	projects: ProjectDTO[];
+	voting: VotingStateDTO;
 	serverTime: number;
 }
 
@@ -259,6 +297,19 @@ export type MessageBody = z.infer<typeof MessageBody>;
 
 export const ModerateBody = z.object({ hidden: z.boolean() });
 export type ModerateBody = z.infer<typeof ModerateBody>;
+
+export const ProjectBody = z.object({
+	name: z.string().trim().min(1).max(40),
+	tagline: z.string().trim().max(120).optional()
+});
+export type ProjectBody = z.infer<typeof ProjectBody>;
+
+export const BallotBody = z.object({ round: VoteRound, ranking: z.array(z.string()).max(200) });
+export type BallotBody = z.infer<typeof BallotBody>;
+
+/** start: none -> group. close-group: group -> pitch (also automatic). close-pitch: pitch -> results. reset: any -> none. */
+export const VotingActionBody = z.object({ action: z.enum(['start', 'close-group', 'close-pitch', 'reset']) });
+export type VotingActionBody = z.infer<typeof VotingActionBody>;
 
 export const SaveBlueprintBody = z.object({ blueprint: Blueprint, version: z.number().int().min(0) });
 export type SaveBlueprintBody = z.infer<typeof SaveBlueprintBody>;

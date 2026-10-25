@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { EventDTO, MessageDTO, PairingDTO, ParticipantDTO, PublicEventDTO, TeamDTO, LiveSnapshotDTO } from './api';
+import type { EventDTO, MessageDTO, PairingDTO, ParticipantDTO, ProjectDTO, PublicEventDTO, TeamDTO, LiveSnapshotDTO, VotingStateDTO } from './api';
 import type { Blueprint } from './blueprint';
 
 /*
@@ -30,6 +30,9 @@ export type ServerEvent =
 	| { type: 'message.created'; message: MessageDTO }
 	| { type: 'message.hidden'; messageId: string; hidden: boolean }
 	| { type: 'participants.count'; eventId: string; count: number }
+	| { type: 'project.updated'; project: ProjectDTO }
+	/** After every ballot and phase change (phase changes also send event.updated). */
+	| { type: 'voting.updated'; eventId: string; voting: VotingStateDTO }
 	// manage
 	| { type: 'participants.updated'; eventId: string; participants: ParticipantDTO[] }
 	| { type: 'event.manage.updated'; event: EventDTO }
