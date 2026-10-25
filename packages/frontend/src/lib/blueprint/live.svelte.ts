@@ -1,4 +1,5 @@
 import type { LiveSnapshotDTO, MessageDTO, ServerEvent, TeamDTO } from 'common';
+import { upsertProject, withVoting } from './live/voting';
 import { live } from '$lib/api';
 import { wsStore } from '$lib/stores/websocket.svelte';
 import { errorMessage } from '$lib/stores/toast.svelte';
@@ -28,10 +29,7 @@ export class LiveEvent {
 
 	/** Subscribe + fetch. Returns a cleanup function (use from $effect / onMount). */
 	start(): () => void {
-		const offs = [
-			wsStore.on('*', (e) => this.handle(e)),
-			wsStore.subscribe(this.slug, 'public')
-		];
+		const offs = [wsStore.on('*', (e) => this.handle(e)), wsStore.subscribe(this.slug, 'public')];
 		this.refresh();
 		return () => {
 			offs.forEach((off) => off());
@@ -93,10 +91,19 @@ export class LiveEvent {
 					if (!e.hidden) this.refresh();
 					return;
 				}
-				this.#patch({ messages: s.messages.map((m) => (m.id === e.messageId ? { ...m, hidden: e.hidden } : m)) });
+				this.#patch({
+					messages: s.messages.map((m) => (m.id === e.messageId ? { ...m, hidden: e.hidden } : m))
+				});
 				return;
 			case 'participants.count':
 				if (this.#mine(e.eventId)) this.#patch({ participantCount: e.count });
+				return;
+			case 'project.updated':
+				if (this.#mine(e.project.eventId))
+					this.#patch({ projects: upsertProject(s.projects, e.project) });
+				return;
+			case 'voting.updated':
+				if (this.#mine(e.eventId)) this.snapshot = withVoting(s, e.voting);
 				return;
 		}
 	}
@@ -104,7 +111,9 @@ export class LiveEvent {
 	#upsertTeam(team: TeamDTO) {
 		const teams = this.snapshot!.teams;
 		const prev = teams.find((t) => t.id === team.id);
-		this.#patch({ teams: prev ? teams.map((t) => (t.id === team.id ? team : t)) : [...teams, team] });
+		this.#patch({
+			teams: prev ? teams.map((t) => (t.id === team.id ? team : t)) : [...teams, team]
+		});
 		if (team.codename && team.codename !== prev?.codename) {
 			this.flashTeamId = team.id;
 			clearTimeout(this.#flashTimer);
@@ -122,7 +131,11 @@ export function hms(ms: number): string {
 
 export type LivePhase = 'loading' | 'missing' | 'pre' | 'live' | 'ended';
 
-export function livePhase(snapshot: LiveSnapshotDTO | null, error: string | null, now: number): LivePhase {
+export function livePhase(
+	snapshot: LiveSnapshotDTO | null,
+	error: string | null,
+	now: number
+): LivePhase {
 	if (!snapshot) return error ? 'missing' : 'loading';
 	const ev = snapshot.event;
 	if (ev.status === 'ended') return 'ended';
