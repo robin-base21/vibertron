@@ -2,11 +2,18 @@ import { attendee } from '$lib/api';
 import { handleError } from '$lib/stores/toast.svelte';
 import { wsStore } from '$lib/stores/websocket.svelte';
 import {
+	candidatesFor,
 	parseStationId,
 	type AttendeeContextDTO,
 	type LiveSnapshotDTO,
 	type MessageDTO,
-	type PairingDTO
+	type PairingDTO,
+	type ProjectDTO,
+	type TallyRow,
+	type TeamDTO,
+	type VoteRound,
+	type VotingPhase,
+	type VotingStateDTO
 } from 'common';
 
 const FEED_LIMIT = 50;
@@ -17,6 +24,11 @@ export class AttendeeState {
 	/** Null until the live snapshot or a WS count arrives. */
 	participantCount = $state<number | null>(null);
 	messages: MessageDTO[] = $state([]);
+	/** Every project of the event (public). */
+	projects: ProjectDTO[] = $state([]);
+	/** Every team (for codenames in the results). */
+	teams: TeamDTO[] = $state([]);
+	voting = $state<VotingStateDTO | null>(null);
 
 	constructor(ctx: AttendeeContextDTO, snapshot: LiveSnapshotDTO | null) {
 		this.ctx = ctx;
@@ -60,6 +72,54 @@ export class AttendeeState {
 		return parsed ? parsed.index + 1 : null;
 	}
 
+	get phase(): VotingPhase {
+		return this.voting?.phase ?? this.ctx.event.votingPhase ?? 'none';
+	}
+
+	get project(): ProjectDTO | null {
+		return this.ctx.project;
+	}
+
+	/** Projects of the attendee's own team. */
+	get teamProjects(): ProjectDTO[] {
+		const teamId = this.ctx.team?.id;
+		return teamId ? this.projects.filter((p) => p.teamId === teamId) : [];
+	}
+
+	/** Project ids the attendee may rank in `round` (never their own). */
+	candidates(round: VoteRound): string[] {
+		const pool = round === 'group' ? this.teamProjects : (this.voting?.pitches ?? []);
+		return candidatesFor(pool, this.me.id);
+	}
+
+	projectById(id: string): ProjectDTO | undefined {
+		return this.projects.find((p) => p.id === id) ?? this.voting?.pitches.find((p) => p.id === id);
+	}
+
+	teamName(teamId: string): string {
+		const t =
+			this.teams.find((x) => x.id === teamId) ??
+			(this.ctx.team?.id === teamId ? this.ctx.team : null);
+		return t?.codename ?? t?.name ?? '';
+	}
+
+	/** Group-round progress of the attendee's team. */
+	get teamProgress() {
+		return this.voting?.group.perTeam.find((t) => t.teamId === this.ctx.team?.id) ?? null;
+	}
+
+	/** Final placing of the attendee's project: in the pitch round if it pitched, else in its team. */
+	get myResult(): { round: VoteRound; row: TallyRow; of: number } | null {
+		const results = this.voting?.results;
+		const id = this.ctx.project?.id;
+		if (!results || !id) return null;
+		const pitch = results.pitch.find((r) => r.projectId === id);
+		if (pitch) return { round: 'pitch', row: pitch, of: results.pitch.length };
+		const group = this.ctx.team ? results.group[this.ctx.team.id] : undefined;
+		const row = group?.find((r) => r.projectId === id);
+		return row && group ? { round: 'group', row, of: group.length } : null;
+	}
+
 	get teammates() {
 		return this.ctx.team?.members.filter((m) => m.participantId !== this.me.id) ?? [];
 	}
@@ -94,6 +154,8 @@ export class AttendeeState {
 			}),
 			wsStore.on('team.updated', (e) => {
 				if (e.team.id === this.ctx.team?.id) this.ctx.team = e.team;
+				const i = this.teams.findIndex((t) => t.id === e.team.id);
+				if (i !== -1) this.teams[i] = e.team;
 			}),
 			wsStore.on('pairing.updated', (e) => {
 				// Personal topic: ignore pairings from the user's other events.
@@ -105,6 +167,16 @@ export class AttendeeState {
 			}),
 			wsStore.on('message.hidden', (e) => {
 				if (e.hidden) this.messages = this.messages.filter((m) => m.id !== e.messageId);
+			}),
+			wsStore.on('project.updated', (e) => {
+				if (e.project.eventId === eventId) this.#upsertProject(e.project);
+			}),
+			wsStore.on('voting.updated', (e) => {
+				if (e.eventId !== eventId) return;
+				const reset = e.voting.phase === 'none' && this.phase !== 'none';
+				this.voting = e.voting;
+				this.ctx.event = { ...this.ctx.event, votingPhase: e.voting.phase };
+				if (reset) this.ctx.ballots = {};
 			})
 		];
 		return () => offs.forEach((off) => off());
@@ -144,8 +216,32 @@ export class AttendeeState {
 		this.#addMessage(message);
 	}
 
+	async saveProject(name: string, tagline: string) {
+		const { project } = await attendee.saveProject(this.slug, {
+			name,
+			tagline: tagline.trim() || undefined
+		});
+		this.#upsertProject(project);
+	}
+
+	async saveBallot(round: VoteRound, ranking: string[]) {
+		const res = await attendee.saveBallot(this.slug, { round, ranking });
+		this.voting = res.voting;
+		this.ctx.ballots = { ...this.ctx.ballots, [round]: [...ranking] };
+	}
+
+	#upsertProject(p: ProjectDTO) {
+		const i = this.projects.findIndex((x) => x.id === p.id);
+		if (i === -1) this.projects.push(p);
+		else this.projects[i] = p;
+		if (p.participantId === this.me.id) this.ctx.project = p;
+	}
+
 	#applySnapshot(s: LiveSnapshotDTO) {
 		this.ctx.event = s.event;
+		this.projects = s.projects ?? [];
+		this.teams = s.teams;
+		if (s.voting) this.voting = s.voting;
 		if (s.blueprint) this.ctx.blueprint = s.blueprint;
 		this.participantCount = s.participantCount;
 		this.messages = s.messages.filter((m) => !m.hidden).slice(-FEED_LIMIT);

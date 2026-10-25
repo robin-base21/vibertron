@@ -2,6 +2,8 @@
 	import { ApiError } from '$lib/api';
 	import Blueprint from '$lib/blueprint/Blueprint.svelte';
 	import Countdown from '$lib/components/Countdown.svelte';
+	import ProjectCard from '$lib/components/attendee/ProjectCard.svelte';
+	import VotingCard from '$lib/components/attendee/VotingCard.svelte';
 	import type { AttendeeState } from '$lib/stores/attendee.svelte';
 	import { clock } from '$lib/stores/clock.svelte';
 	import { errorMessage, handleError } from '$lib/stores/toast.svelte';
@@ -91,6 +93,10 @@
 		</section>
 	{/if}
 
+	{#if team}
+		<VotingCard state={s} />
+	{/if}
+
 	{#if team && s.ctx.stationId}
 		<section class="flex flex-col gap-1">
 			<span class="bp-label text-sm opacity-60">Your workstation</span>
@@ -175,6 +181,8 @@
 				</div>
 			{/if}
 		</section>
+
+		<ProjectCard state={s} />
 	{:else if !ended}
 		<section class="border border-dashed border-bp-line/40 p-6 text-center">
 			<p class="bp-label text-lg">Assigning your station…</p>
