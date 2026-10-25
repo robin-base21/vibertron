@@ -7,14 +7,19 @@ import {
 	type ParticipantDTO,
 	type PublicEventDTO,
 	type TeamDTO,
-	type UserDTO
+	type UserDTO,
+	type ProjectDTO,
+	type TallyRow,
+	type VotingStateDTO,
+	groupEligibleVoters,
+	pitchEligibleVoters
 } from 'common';
 import { and, asc, count, desc, eq, inArray, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import type { Event } from './auth/guards';
 import type { User } from './auth/session';
 import type { DB } from './db';
-import { blueprints, messages, pairings, participants, teamMembers, teams, users } from './db/schema';
+import { ballots, blueprints, messages, pairings, participants, projects, teamMembers, teams, users, votingResults } from './db/schema';
 
 const ms = (d: Date | null) => (d ? d.getTime() : null);
 
@@ -31,7 +36,8 @@ export function publicEventDTO(e: Event): PublicEventDTO {
 		teamSize: e.teamSize,
 		durationMin: e.durationMin,
 		startedAt: ms(e.startedAt),
-		endsAt: ms(e.endsAt)
+		endsAt: ms(e.endsAt),
+		votingPhase: e.votingPhase
 	};
 }
 
@@ -182,6 +188,128 @@ export function liveSnapshot(db: DB, event: Event, includeHidden: boolean): Live
 		teams: teamDTOs(db, event.id),
 		messages: recentMessages(db, event.id, includeHidden),
 		participantCount: participantCount(db, event.id),
+		projects: projectDTOs(db, event.id),
+		voting: votingState(db, event),
 		serverTime: Date.now()
 	};
+}
+
+// ---------- Voting (Phase 6) ----------
+
+function projectQuery(db: DB) {
+	return db
+		.select({
+			id: projects.id,
+			eventId: projects.eventId,
+			teamId: projects.teamId,
+			participantId: projects.participantId,
+			authorName: users.displayName,
+			name: projects.name,
+			tagline: projects.tagline
+		})
+		.from(projects)
+		.innerJoin(participants, eq(participants.id, projects.participantId))
+		.innerJoin(users, eq(users.id, participants.userId))
+		.leftJoin(teams, eq(teams.id, projects.teamId));
+}
+
+/** Projects of an event in team order, then by author name. */
+export function projectDTOs(db: DB, eventId: string): ProjectDTO[] {
+	return projectQuery(db).where(eq(projects.eventId, eventId)).orderBy(asc(teams.position), asc(users.displayName)).all();
+}
+
+export function projectDTO(db: DB, projectId: string): ProjectDTO | null {
+	return projectQuery(db).where(eq(projects.id, projectId)).get() ?? null;
+}
+
+export function projectForParticipant(db: DB, participantId: string): ProjectDTO | null {
+	return projectQuery(db).where(eq(projects.participantId, participantId)).get() ?? null;
+}
+
+/** Frozen group-round result: per-team tallies and the pitching project ids in team order. */
+export interface GroupResult {
+	teams: Record<string, TallyRow[]>;
+	pitches: string[];
+}
+
+export function loadResult(db: DB, eventId: string, round: 'group'): GroupResult | null;
+export function loadResult(db: DB, eventId: string, round: 'pitch'): TallyRow[] | null;
+export function loadResult(db: DB, eventId: string, round: 'group' | 'pitch'): GroupResult | TallyRow[] | null {
+	const row = db
+		.select({ json: votingResults.json })
+		.from(votingResults)
+		.where(and(eq(votingResults.eventId, eventId), eq(votingResults.round, round)))
+		.get();
+	return row ? JSON.parse(row.json) : null;
+}
+
+/** Team members (participant ids) per team, teams in position order. */
+export function teamRosters(db: DB, eventId: string): { teamId: string; memberIds: string[] }[] {
+	const teamRows = db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, eventId)).orderBy(asc(teams.position)).all();
+	if (teamRows.length === 0) return [];
+	const members = db
+		.select({ teamId: teamMembers.teamId, participantId: teamMembers.participantId })
+		.from(teamMembers)
+		.where(
+			inArray(
+				teamMembers.teamId,
+				teamRows.map((t) => t.id)
+			)
+		)
+		.all();
+	return teamRows.map((t) => ({ teamId: t.id, memberIds: members.filter((m) => m.teamId === t.id).map((m) => m.participantId) }));
+}
+
+/** Pitching projects (team order) once the group round is closed; otherwise empty. */
+export function pitchProjects(db: DB, eventId: string, all: ProjectDTO[] = projectDTOs(db, eventId)): ProjectDTO[] {
+	const group = loadResult(db, eventId, 'group');
+	if (!group) return [];
+	const byId = new Map(all.map((p) => [p.id, p]));
+	return group.pitches.map((id) => byId.get(id)).filter((p): p is ProjectDTO => !!p);
+}
+
+export function votingState(db: DB, event: Event): VotingStateDTO {
+	const all = projectDTOs(db, event.id);
+	const rosters = teamRosters(db, event.id);
+	const cast = db
+		.select({ round: ballots.round, voter: ballots.voterParticipantId })
+		.from(ballots)
+		.where(eq(ballots.eventId, event.id))
+		.all();
+	const castBy = (round: 'group' | 'pitch') => new Set(cast.filter((b) => b.round === round).map((b) => b.voter));
+	const groupCast = castBy('group');
+	const pitchCast = castBy('pitch');
+
+	const perTeam = rosters.map(({ teamId, memberIds }) => {
+		const eligible = groupEligibleVoters(
+			memberIds,
+			all.filter((p) => p.teamId === teamId)
+		);
+		return { teamId, cast: eligible.filter((v) => groupCast.has(v)).length, eligible: eligible.length };
+	});
+	const voting = perTeam.filter((t) => t.eligible > 0);
+
+	const pitches = event.votingPhase === 'pitch' || event.votingPhase === 'results' ? pitchProjects(db, event.id, all) : [];
+	const pitchVoters = pitchEligibleVoters(
+		rosters.flatMap((r) => r.memberIds),
+		pitches
+	);
+
+	const state: VotingStateDTO = {
+		phase: event.votingPhase,
+		group: { teamsDone: voting.filter((t) => t.cast >= t.eligible).length, teamsTotal: voting.length, perTeam },
+		pitch: { cast: pitchVoters.filter((v) => pitchCast.has(v)).length, eligible: pitchVoters.length },
+		pitches
+	};
+	if (event.votingPhase === 'results') {
+		state.results = { group: loadResult(db, event.id, 'group')?.teams ?? {}, pitch: loadResult(db, event.id, 'pitch') ?? [] };
+	}
+	return state;
+}
+
+/** The participant's saved rankings. */
+export function ballotsFor(db: DB, participantId: string): { group?: string[]; pitch?: string[] } {
+	const out: { group?: string[]; pitch?: string[] } = {};
+	for (const b of db.select().from(ballots).where(eq(ballots.voterParticipantId, participantId)).all()) out[b.round] = JSON.parse(b.ranking);
+	return out;
 }

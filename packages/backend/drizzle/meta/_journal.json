@@ -15,6 +15,13 @@
       "when": 1792823092421,
       "tag": "0001_silly_crusher_hogan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792901201806,
+      "tag": "0002_open_unicorn",
+      "breakpoints": true
     }
   ]
 }
