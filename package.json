@@ -9,7 +9,7 @@
     "dev": "bun run --filter backend dev & bun run --filter frontend dev",
     "dev:backend": "bun run --filter backend dev",
     "dev:frontend": "bun run --filter frontend dev",
-    "test": "bun test packages/common packages/backend packages/frontend/src/lib/floorplan",
+    "test": "bun test packages/common packages/backend packages/frontend/src/lib/floorplan packages/frontend/src/lib/blueprint",
     "test:e2e": "bun run --filter e2e test",
     "check": "bun run --filter frontend check",
     "db:generate": "bun run --filter backend db:generate",
