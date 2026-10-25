@@ -45,6 +45,9 @@ export const events = sqliteTable('events', {
 	joinSecret: text('join_secret').notNull(),
 	/** Team assignment seed, stored at launch so results are reproducible. */
 	seed: integer('seed'),
+	votingPhase: text('voting_phase', { enum: ['none', 'group', 'pitch', 'results'] })
+		.notNull()
+		.default('none'),
 	createdAt: createdAt()
 });
 
@@ -177,4 +180,65 @@ export const messages = sqliteTable(
 		createdAt: createdAt()
 	},
 	(t) => [index('messages_event_idx').on(t.eventId, t.createdAt)]
+);
+
+/** One project per participant (Phase 6 voting). */
+export const projects = sqliteTable(
+	'projects',
+	{
+		id: text('id').primaryKey(),
+		eventId: text('event_id')
+			.notNull()
+			.references(() => events.id, { onDelete: 'cascade' }),
+		participantId: text('participant_id')
+			.notNull()
+			.unique()
+			.references(() => participants.id, { onDelete: 'cascade' }),
+		teamId: text('team_id')
+			.notNull()
+			.references(() => teams.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		tagline: text('tagline'),
+		createdAt: createdAt(),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(t) => [index('projects_event_idx').on(t.eventId)]
+);
+
+export const ballots = sqliteTable(
+	'ballots',
+	{
+		id: text('id').primaryKey(),
+		eventId: text('event_id')
+			.notNull()
+			.references(() => events.id, { onDelete: 'cascade' }),
+		round: text('round', { enum: ['group', 'pitch'] }).notNull(),
+		voterParticipantId: text('voter_participant_id')
+			.notNull()
+			.references(() => participants.id, { onDelete: 'cascade' }),
+		/** The voter's team for group ballots; null for pitch ballots. */
+		teamId: text('team_id').references(() => teams.id, { onDelete: 'cascade' }),
+		/** JSON string[]: project ids, best first. */
+		ranking: text('ranking').notNull(),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(t) => [uniqueIndex('ballots_voter_idx').on(t.eventId, t.round, t.voterParticipantId)]
+);
+
+/** Frozen result of a closed round. group: { teams: Record<teamId, TallyRow[]>, pitches: projectId[] }; pitch: TallyRow[]. */
+export const votingResults = sqliteTable(
+	'voting_results',
+	{
+		eventId: text('event_id')
+			.notNull()
+			.references(() => events.id, { onDelete: 'cascade' }),
+		round: text('round', { enum: ['group', 'pitch'] }).notNull(),
+		json: text('json').notNull(),
+		createdAt: createdAt()
+	},
+	(t) => [primaryKey({ columns: [t.eventId, t.round] })]
 );
