@@ -40,7 +40,8 @@ const rows = (page: Page) => votingCard(page).locator('li[data-rank-id]');
 
 /** Project names in the order the RankList shows them. */
 async function rankedNames(page: Page): Promise<string[]> {
-	return (await rows(page).locator('.bp-label').allInnerTexts()).map((s) => s.trim());
+	// textContent, not innerText: the labels are uppercased with CSS.
+	return (await rows(page).locator('.bp-label').allTextContents()).map((s) => s.trim());
 }
 
 /** Touch-drag a row's handle so its centre lands `dy` px away, via CDP touch events. */
@@ -73,10 +74,11 @@ async function buttonsToTop(a: Attendee, name: string) {
 	}
 }
 
-async function submitBallot(page: Page) {
+/** `closesRound`: the last team ballot closes the round at once, so there is no "Saved" state. */
+async function submitBallot(page: Page, closesRound = false) {
 	const card = votingCard(page);
 	await card.getByRole('button', { name: /^(Submit|Update) ranking$/ }).click();
-	await expect(card.getByText('Saved, you can change it until the round closes.')).toBeVisible();
+	if (!closesRound) await expect(card.getByText('Saved, you can change it until the round closes.')).toBeVisible();
 }
 
 test('voting: projects → team round (auto-close) → pitch round → results', async ({ browser }) => {
@@ -195,11 +197,11 @@ test('voting: projects → team round (auto-close) → pitch round → results',
 	});
 
 	await test.step('team round: each member ranks their teammate; the round closes by itself', async () => {
-		for (const a of attendees) {
+		for (const [i, a] of attendees.entries()) {
 			// Teams of 2: the only candidate is the teammate's project, never your own.
-			expect(await rankedNames(a.page)).not.toContain(projectName(a.name));
 			await expect(rows(a.page)).toHaveCount(1);
-			await submitBallot(a.page);
+			expect(await rankedNames(a.page)).not.toContain(projectName(a.name));
+			await submitBallot(a.page, i === attendees.length - 1);
 		}
 		await expect(mgr.getByText('Pitch round', { exact: true })).toBeVisible();
 		for (const a of attendees) {

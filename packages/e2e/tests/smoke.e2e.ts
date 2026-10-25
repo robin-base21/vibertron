@@ -192,7 +192,7 @@ test('event lifecycle: invite → join → pair → launch → codename → mess
 
 	await test.step('Ada sets the codename and posts a message', async () => {
 		await ada!.page.getByPlaceholder('Pick a name for the TV').fill('Night Owls');
-		await ada!.page.getByRole('button', { name: 'Save' }).click();
+		await ada!.page.getByRole('button', { name: 'Save', exact: true }).click();
 		await expect(ada!.page.getByText('Night Owls', { exact: true })).toBeVisible();
 		await expect(cy!.page.getByText('Night Owls', { exact: true })).toBeVisible();
 		await expect(tv.getByText('Night Owls', { exact: true }).first()).toBeVisible();
