@@ -4,7 +4,7 @@ import type { App, Routes } from '../app';
 import { canManage, requireUser, type Event } from '../auth/guards';
 import type { User } from '../auth/session';
 import { events, pairings, participants, teamMembers } from '../db/schema';
-import { loadBlueprint, pairingDTO, pairingsForParticipant, participantDTO, publicEventDTO, teamDTO } from '../dto';
+import { ballotsFor, loadBlueprint, pairingDTO, pairingsForParticipant, participantDTO, projectForParticipant, publicEventDTO, teamDTO } from '../dto';
 import { badRequest, conflict, forbidden, json, notFound, parseBody } from '../http';
 import { notifyPairing } from '../live/notify';
 
@@ -84,7 +84,9 @@ export function attendeeRoutes(app: App): Routes {
 					pairings: pairingsForParticipant(db, participant.id),
 					team: member ? teamDTO(db, member.teamId) : null,
 					stationId: member?.stationId ?? null,
-					blueprint: loadBlueprint(db, event.id).blueprint
+					blueprint: loadBlueprint(db, event.id).blueprint,
+					project: projectForParticipant(db, participant.id),
+					ballots: ballotsFor(db, participant.id)
 				};
 				return json(ctx);
 			}

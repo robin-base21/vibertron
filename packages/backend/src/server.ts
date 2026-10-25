@@ -15,6 +15,7 @@ import { inviteRoutes } from './routes/invites';
 import { joinRoutes } from './routes/join';
 import { endExpiredEvents, launchRoutes } from './routes/launch';
 import { liveRoutes } from './routes/live';
+import { votingRoutes } from './routes/voting';
 
 export interface ServerOptions {
 	port?: number;
@@ -61,7 +62,8 @@ export function createServer(opts: ServerOptions = {}) {
 		...attendeeRoutes(app),
 		...blueprintRoutes(app),
 		...launchRoutes(app),
-		...liveRoutes(app)
+		...liveRoutes(app),
+		...votingRoutes(app)
 	};
 	const wrapped: Routes = {};
 	for (const [path, methods] of Object.entries(routes)) {
