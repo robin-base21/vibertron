@@ -2,6 +2,7 @@
 // Request bodies are parsed with the shared zod schemas before sending.
 import {
 	AnalyzeBody,
+	BallotBody,
 	CodenameBody,
 	CreateEventBody,
 	CreateInviteBody,
@@ -13,10 +14,12 @@ import {
 	MessageBody,
 	ModerateBody,
 	PairBody,
+	ProjectBody,
 	SaveBlueprintBody,
 	UpdateEventBody,
 	UpdateInviteBody,
 	UpdateUserBody,
+	VotingActionBody,
 	type AnalyzeResultDTO,
 	type AttendeeContextDTO,
 	type Blueprint,
@@ -29,9 +32,11 @@ import {
 	type MessageDTO,
 	type PairingDTO,
 	type ParticipantDTO,
+	type ProjectDTO,
 	type PublicEventDTO,
 	type TeamDTO,
-	type UserDTO
+	type UserDTO,
+	type VotingStateDTO
 } from 'common';
 import { API_URL as API_BASE } from '$lib/env';
 import { api, type Fetch } from './client';
@@ -118,7 +123,17 @@ export const attendee = {
 			body: CodenameBody.parse(body)
 		}),
 	postMessage: (slug: string, body: In<typeof MessageBody>) =>
-		api<{ message: MessageDTO }>(`/api/e/${e(slug)}/messages`, { body: MessageBody.parse(body) })
+		api<{ message: MessageDTO }>(`/api/e/${e(slug)}/messages`, { body: MessageBody.parse(body) }),
+	saveProject: (slug: string, body: In<typeof ProjectBody>) =>
+		api<{ project: ProjectDTO }>(`/api/e/${e(slug)}/project`, {
+			method: 'PUT',
+			body: ProjectBody.parse(body)
+		}),
+	saveBallot: (slug: string, body: In<typeof BallotBody>) =>
+		api<{ ok: true; voting: VotingStateDTO }>(`/api/e/${e(slug)}/ballot`, {
+			method: 'PUT',
+			body: BallotBody.parse(body)
+		})
 };
 
 export const blueprints = {
@@ -159,6 +174,13 @@ export const launch = {
 		api<{ message: MessageDTO }>(`/api/messages/${e(messageId)}`, {
 			method: 'PATCH',
 			body: ModerateBody.parse(body)
+		})
+};
+
+export const voting = {
+	action: (eventId: string, body: In<typeof VotingActionBody>) =>
+		api<{ event: EventDTO; voting: VotingStateDTO }>(`/api/events/${e(eventId)}/voting`, {
+			body: VotingActionBody.parse(body)
 		})
 };
 

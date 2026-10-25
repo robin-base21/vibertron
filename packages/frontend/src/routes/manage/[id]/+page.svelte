@@ -4,11 +4,19 @@
 	import Countdown from '$lib/components/Countdown.svelte';
 	import LaunchDialog from '$lib/components/manage/LaunchDialog.svelte';
 	import Moderation from '$lib/components/manage/Moderation.svelte';
+	import VotingPanel from '$lib/components/manage/VotingPanel.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import { session } from '$lib/stores/session.svelte';
 	import { handleError, toasts } from '$lib/stores/toast.svelte';
 	import { wsStore } from '$lib/stores/websocket.svelte';
-	import type { EventDTO, MessageDTO, PublicEventDTO, TeamDTO } from 'common';
+	import type {
+		EventDTO,
+		MessageDTO,
+		ProjectDTO,
+		PublicEventDTO,
+		TeamDTO,
+		VotingStateDTO
+	} from 'common';
 	import { Copy, ExternalLink, QrCode, Trash2 } from '@lucide/svelte';
 
 	let { data } = $props();
@@ -20,6 +28,8 @@
 
 	let messages = $state<MessageDTO[]>([]);
 	let teams = $state<TeamDTO[]>([]);
+	let projects = $state<ProjectDTO[]>([]);
+	let voting = $state<VotingStateDTO | null>(null);
 	const teamLabel = $derived(
 		new Map(teams.map((t) => [t.id, t.codename ? `${t.codename} (${t.name})` : t.name]))
 	);
@@ -56,6 +66,8 @@
 			wsStore.on('subscribed', (e) => {
 				if (e.snapshot.event.id !== id) return;
 				mergeEvent(e.snapshot.event);
+				projects = e.snapshot.projects ?? [];
+				voting = e.snapshot.voting ?? null;
 				messages = e.snapshot.messages;
 				teams = e.snapshot.teams;
 			}),
@@ -68,6 +80,17 @@
 				if (e.team.eventId === id) teams = teams.map((t) => (t.id === e.team.id ? e.team : t));
 			}),
 			// Managers get every message (incl. hidden) on the manage topic; public copies dedupe.
+			wsStore.on('project.updated', (e) => {
+				if (e.project.eventId !== id) return;
+				const i = projects.findIndex((p) => p.id === e.project.id);
+				if (i === -1) projects.push(e.project);
+				else projects[i] = e.project;
+			}),
+			wsStore.on('voting.updated', (e) => {
+				if (e.eventId !== id) return;
+				voting = e.voting;
+				event = { ...event, votingPhase: e.voting.phase };
+			}),
 			wsStore.on('message.manage', (e) => upsertMessage(e.message)),
 			wsStore.on('message.created', (e) => upsertMessage(e.message)),
 			wsStore.on('message.hidden', (e) => {
@@ -256,6 +279,16 @@
 	<div class="grid gap-8 lg:grid-cols-[1fr_24rem]">
 		<div class="flex flex-col gap-8">
 			{#if event.status === 'live' || event.status === 'ended'}
+				<VotingPanel
+					{event}
+					{teams}
+					{projects}
+					{voting}
+					onchange={(next, state) => {
+						event = next;
+						voting = state;
+					}}
+				/>
 				<Moderation {messages} onupdate={upsertMessage} />
 			{/if}
 			<section class="flex flex-col gap-3">
