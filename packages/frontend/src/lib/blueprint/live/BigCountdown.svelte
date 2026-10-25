@@ -10,7 +10,11 @@
 </script>
 
 <time
-	class={['block font-mono leading-none font-medium tabular-nums', final && 'final text-bp-accent', className]}
+	class={[
+		'block font-mono leading-none font-medium tabular-nums',
+		final && 'final text-bp-accent',
+		className
+	]}
 	aria-live="off"
 	aria-label="Time remaining">{remaining === null ? '--:--:--' : hms(remaining)}</time
 >
