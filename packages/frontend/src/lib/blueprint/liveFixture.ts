@@ -43,7 +43,7 @@ export function startFixture(
 		if (status === 'open') return;
 
 		let n = 0;
-		let progress = 0.3;
+		let progress = phase === 'pitch' ? 0 : 0.3;
 		timer = setInterval(() => {
 			const s = live.snapshot!;
 			const votingPhase = s.event.votingPhase;

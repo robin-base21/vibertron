@@ -203,8 +203,8 @@
 					<span class="bp-label">{teamLabel(winner.team)}</span>
 				</p>
 				<p class="font-mono text-[0.85em] opacity-70">
-					{winner.points} PTS · {winner.firsts}× #1{#if winnerByDraw(ranking)}&nbsp;· DECIDED BY
-						DRAW{/if}
+					{winner.points} PTS · {winner.firsts}× #1
+					{#if winnerByDraw(ranking)}· DECIDED BY DRAW{/if}
 				</p>
 			</div>
 			<ol class="flex min-h-0 flex-col overflow-hidden">
@@ -220,12 +220,9 @@
 								· {r.project?.authorName ?? ''} · {teamLabel(r.team)}</span
 							>
 						</span>
-						<span class="font-mono text-[0.85em] whitespace-nowrap tabular-nums">
-							{r.points}<span class="opacity-50"> PTS</span>{#if r.tieBrokenByDraw}<span
-									class="opacity-60"
-								>
-									· DRAW</span
-								>{/if}
+						<span class="flex gap-[0.4em] font-mono text-[0.85em] whitespace-nowrap tabular-nums">
+							<span>{r.points} <span class="opacity-50">PTS</span></span>
+							{#if r.tieBrokenByDraw}<span class="opacity-60">DRAW</span>{/if}
 						</span>
 					</li>
 				{/each}

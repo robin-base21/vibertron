@@ -326,7 +326,7 @@ export function fixtureSnapshot(
 		messages: live ? fixtureMessages(now) : [],
 		participantCount: 18,
 		projects,
-		voting: fixtureVoting(phase, live ? fixtureTeams : [], projects, 0.3, draw),
+		voting: fixtureVoting(phase, live ? fixtureTeams : [], projects, phase === 'pitch' ? 0 : 0.3, draw),
 		serverTime: now
 	};
 }
