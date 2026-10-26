@@ -18,7 +18,8 @@
 		highlighted?: 'select' | 'highlight' | null;
 		highlightStationId?: string;
 		/** Station ids taken by a team; drawn filled. */
-		occupied?: Set<string>;
+		/** Occupied stations: station id -> fill paint (team colour or its hatch pattern). */
+		occupied?: Map<string, string>;
 		hideLabel?: boolean;
 		/** 'corner': small name above the top-left corner (used when team tags cover the segment). */
 		labelMode?: 'center' | 'corner';
@@ -77,16 +78,15 @@
 	/>
 
 	{#each glyphs as g (g.id)}
-		{@const taken = occupied?.has(g.id)}
+		{@const paint = occupied?.get(g.id)}
 		<rect
 			x={g.pos[0] - sym / 2}
 			y={g.pos[1] - sym / 2}
 			width={sym}
 			height={sym}
-			fill={taken ? ctx.fg : 'none'}
-			fill-opacity={taken ? 0.85 : undefined}
+			fill={paint ?? 'none'}
 			stroke={ctx.fg}
-			stroke-opacity={taken ? 1 : 0.6}
+			stroke-opacity={paint ? 1 : 0.6}
 			stroke-width={sw2}
 		/>
 		{#if showNumbers}

@@ -134,7 +134,7 @@
 				</section>
 				<section class="flex flex-col gap-2">
 					<h2 class="bp-label text-xs opacity-60">Messages</h2>
-					<MessageFeed messages={liveEvent.messages} limit={30} class="text-base" />
+					<MessageFeed messages={liveEvent.messages} {teams} limit={30} class="text-base" />
 				</section>
 			</div>
 		{/if}

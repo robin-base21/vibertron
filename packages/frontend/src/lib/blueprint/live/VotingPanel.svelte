@@ -2,6 +2,7 @@
 	import type { ProjectDTO, TeamDTO, VotingStateDTO } from 'common';
 	import { untrack } from 'svelte';
 	import { fade, fly, scale } from 'svelte/transition';
+	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
 	import { groupRows, pitchRanking, teamLabel, winnerByDraw } from './voting';
 
 	interface Props {
@@ -95,9 +96,10 @@
 				<li
 					class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-[0.8em] border-b border-bp-line/20 py-[0.45em]"
 				>
-					<span class={['truncate bp-label font-semibold', r.mode !== 'vote' && 'opacity-60']}
-						>{teamLabel(r.team)}</span
-					>
+					<span class={['flex min-w-0 items-center gap-[0.4em]', r.mode !== 'vote' && 'opacity-60']}>
+						<TeamSwatch position={r.team.position} class="size-[0.8em]" />
+						<span class="truncate bp-label font-semibold">{teamLabel(r.team)}</span>
+					</span>
 					{#if r.mode === 'vote'}
 						<span class="flex items-center gap-[0.5em]">
 							<span class="flex gap-[0.2em]" aria-label="{r.cast} of {r.eligible} ballots">
@@ -148,7 +150,9 @@
 					<div class="flex min-w-0 flex-col">
 						<span class="truncate bp-label text-[1.5em] leading-tight font-bold">{p.name}</span>
 						<span class="truncate text-[0.85em] opacity-70">
-							{p.authorName} · <span class="bp-label">{teamLabel(teamById.get(p.teamId))}</span>
+							{p.authorName} ·
+							{#if teamById.get(p.teamId)}<TeamSwatch position={teamById.get(p.teamId)!.position} class="size-[0.75em] align-baseline" />{/if}
+							<span class="bp-label">{teamLabel(teamById.get(p.teamId))}</span>
 						</span>
 					</div>
 				</li>
@@ -200,6 +204,7 @@
 				</p>
 				<p class="text-[1.1em]">
 					{winner.project?.authorName ?? ''} ·
+					{#if winner.team}<TeamSwatch position={winner.team.position} class="size-[0.8em] align-baseline" />{/if}
 					<span class="bp-label">{teamLabel(winner.team)}</span>
 				</p>
 				<p class="font-mono text-[0.85em] opacity-70">
@@ -217,7 +222,9 @@
 						<span class="min-w-0 truncate">
 							<span class="bp-label font-semibold">{r.project?.name ?? r.projectId}</span>
 							<span class="text-[0.8em] opacity-60">
-								· {r.project?.authorName ?? ''} · {teamLabel(r.team)}</span
+								· {r.project?.authorName ?? ''} ·
+								{#if r.team}<TeamSwatch position={r.team.position} class="size-[0.75em] align-baseline" />{/if}
+								{teamLabel(r.team)}</span
 							>
 						</span>
 						<span class="flex gap-[0.4em] font-mono text-[0.85em] whitespace-nowrap tabular-nums">

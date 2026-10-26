@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type { Blueprint, TeamDTO } from 'common';
+	import { TEAM_COLORS, teamColor, type Blueprint, type TeamDTO } from 'common';
 	import { pointsAttr, teamPlacements } from './geometry';
 	import SegmentShape from './SegmentShape.svelte';
 	import TeamTag from './TeamTag.svelte';
@@ -70,7 +70,14 @@
 		accent: ACCENT
 	});
 	const placements = $derived(teamPlacements(blueprint.segments, teams));
-	const occupied = $derived(new Set(placements.flatMap((p) => [...p.stationIds])));
+	/** Team paint: the colour, or its diagonal hatch for the second and later colour cycles. */
+	const paintOf = (team: TeamDTO) => {
+		const c = teamColor(team.position);
+		return { color: c.hex, fill: c.striped ? `url(#${uid}-hatch-${team.position % TEAM_COLORS.length})` : c.hex, striped: c.striped };
+	};
+	const occupied = $derived(
+		new Map(placements.flatMap((p) => [...p.stationIds].map((id) => [id, paintOf(p.team).fill] as const)))
+	);
 	const decorative = $derived(blueprint.outlines.filter((o) => !o.label));
 	const rooms = $derived(roomLabels(blueprint.outlines));
 	/** Underlay placement: the crop region of the image fills the canvas. */
@@ -101,6 +108,12 @@
 			<pattern id="{uid}-grid100" width="100" height="100" patternUnits="userSpaceOnUse">
 				<path d="M 100 0 L 0 0 0 100" fill="none" stroke={ctx.fg} stroke-opacity="0.08" stroke-width={ctx.u} />
 			</pattern>
+			{#each TEAM_COLORS as c, i (c.hex)}
+				<pattern id="{uid}-hatch-{i}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+					<rect width="5" height="5" fill={c.hex} />
+					<rect width="2" height="5" fill={ctx.bg} />
+				</pattern>
+			{/each}
 			<clipPath id="{uid}-canvas"><rect width={cw} height={ch} /></clipPath>
 			<filter id="{uid}-tex" x="0" y="0" width="100%" height="100%">
 				<feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch" />
@@ -187,7 +200,7 @@
 		{/each}
 
 		{#each placements as p (p.team.id)}
-			<TeamTag placement={p} {ctx} highlighted={p.team.id === highlightTeamId} />
+			<TeamTag placement={p} {ctx} paint={paintOf(p.team)} highlighted={p.team.id === highlightTeamId} />
 		{/each}
 
 		{#if showTitleBlock}

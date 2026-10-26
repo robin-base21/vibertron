@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
 	import RankList from '$lib/components/RankList.svelte';
 	import type { AttendeeState } from '$lib/stores/attendee.svelte';
 	import { errorMessage } from '$lib/stores/toast.svelte';
@@ -98,8 +99,11 @@
 					{#snippet row(id)}
 						{@const p = s.projectById(id)}
 						<span class="truncate bp-label text-lg leading-tight">{p?.name ?? id}</span>
-						<span class="truncate font-mono text-xs opacity-60">
-							{p?.authorName}{round === 'pitch' && p ? ` · ${s.teamName(p.teamId)}` : ''}
+						<span class="flex min-w-0 items-center gap-1.5 font-mono text-xs opacity-60">
+							{#if round === 'pitch' && p && s.teamPosition(p.teamId) !== null}
+								<TeamSwatch position={s.teamPosition(p.teamId)!} class="size-2.5" />
+							{/if}
+							<span class="truncate">{p?.authorName}{round === 'pitch' && p ? ` · ${s.teamName(p.teamId)}` : ''}</span>
 						</span>
 						{#if p?.tagline}<span class="truncate text-xs opacity-60">{p.tagline}</span>{/if}
 					{/snippet}
@@ -127,7 +131,10 @@
 						{winner.project?.name ?? '—'}
 					</span>
 					{#if winner.project}
-						<span class="font-mono text-xs opacity-70">
+						<span class="flex items-center gap-1.5 font-mono text-xs opacity-70">
+							{#if s.teamPosition(winner.project.teamId) !== null}
+								<TeamSwatch position={s.teamPosition(winner.project.teamId)!} class="size-2.5" />
+							{/if}
 							{winner.project.authorName} · {s.teamName(winner.project.teamId)}
 						</span>
 					{/if}

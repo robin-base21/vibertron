@@ -193,8 +193,8 @@ test('event lifecycle: invite → join → pair → launch → codename → mess
 	await test.step('Ada sets the codename and posts a message', async () => {
 		await ada!.page.getByPlaceholder('Pick a name for the TV').fill('Night Owls');
 		await ada!.page.getByRole('button', { name: 'Save', exact: true }).click();
-		await expect(ada!.page.getByText('Night Owls', { exact: true })).toBeVisible();
-		await expect(cy!.page.getByText('Night Owls', { exact: true })).toBeVisible();
+		await expect(ada!.page.getByText('Night Owls', { exact: true }).first()).toBeVisible();
+		await expect(cy!.page.getByText('Night Owls', { exact: true }).first()).toBeVisible();
 		await expect(tv.getByText('Night Owls', { exact: true }).first()).toBeVisible();
 
 		await ada!.page.getByPlaceholder('Shows up on the venue TV').fill(MESSAGE);
@@ -228,7 +228,10 @@ test('event lifecycle: invite → join → pair → launch → codename → mess
 
 	await test.step('manager ends the event', async () => {
 		await mgr.getByRole('button', { name: 'End event' }).click();
+		await mgr.getByRole('dialog', { name: 'End the build?' }).getByRole('button', { name: 'End event' }).click();
 		await expect(mgr.getByText('Event ended')).toBeVisible();
+		// Time's up waits for the manager: voting is offered, never started automatically.
+		await expect(mgr.getByRole('button', { name: 'Start voting…' })).toBeVisible();
 		for (const a of attendees) await expect(a.page.getByText('That’s a wrap')).toBeVisible();
 		await expect(tv.getByText(/Final codenames/)).toBeVisible();
 	});

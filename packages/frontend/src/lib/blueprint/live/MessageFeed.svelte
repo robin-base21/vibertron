@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MessageDTO } from 'common';
+	import { teamColor, type MessageDTO, type TeamDTO } from 'common';
 	import { flip } from 'svelte/animate';
 	import { fly } from 'svelte/transition';
 
@@ -7,10 +7,14 @@
 		/** Newest first. */
 		messages: MessageDTO[];
 		limit?: number;
+		/** For the team colour on each message. */
+		teams?: TeamDTO[];
 		class?: string;
 	}
 
-	let { messages, limit = 12, class: className = '' }: Props = $props();
+	let { messages, limit = 12, teams = [], class: className = '' }: Props = $props();
+
+	const colorOf = $derived(new Map(teams.map((t) => [t.id, teamColor(t.position).hex])));
 
 	const shown = $derived(messages.slice(0, limit));
 	const time = (ms: number) =>
@@ -20,7 +24,8 @@
 <ol class={['flex flex-col gap-[0.6em]', className]} aria-live="polite">
 	{#each shown as m (m.id)}
 		<li
-			class="border-l-2 border-bp-line/60 pl-[0.6em]"
+			class="border-l-4 border-bp-line/60 pl-[0.6em]"
+			style:border-left-color={colorOf.get(m.teamId)}
 			in:fly={{ y: -16, duration: 400 }}
 			animate:flip={{ duration: 300 }}
 		>

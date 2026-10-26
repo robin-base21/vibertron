@@ -130,6 +130,7 @@ function team(
 		name: `Team ${i}`,
 		codename,
 		segmentId: seg.id,
+		position: i - 1,
 		members: ids.map((stationId, k) => ({
 			participantId: `p_${i}_${k}`,
 			displayName: names[(i * 3 + k) % names.length]!,

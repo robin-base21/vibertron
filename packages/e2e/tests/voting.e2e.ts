@@ -187,8 +187,14 @@ test('voting: projects → team round (auto-close) → pitch round → results',
 	await tv.goto(`/e/${slug}/tv`);
 	await expect(tv.getByRole('heading', { name: EVENT_NAME })).toBeVisible();
 
-	await test.step('manager starts team voting; project names lock', async () => {
-		await mgr.getByRole('button', { name: 'Start team voting' }).click();
+	await test.step('manager confirms voting from the header; the build ends and project names lock', async () => {
+		await mgr.getByRole('button', { name: 'Start voting…' }).click();
+		const confirm = mgr.getByRole('dialog', { name: 'Start voting?' });
+		await expect(confirm.getByText(/Ends the build now/)).toBeVisible();
+		await expect(confirm.getByText('4 of 4 attendees named a project.')).toBeVisible();
+		await confirm.getByRole('button', { name: 'End build and start voting' }).click();
+		await expect(confirm).toBeHidden();
+		await expect(mgr.getByRole('listitem').filter({ hasText: 'Team vote' })).toHaveAttribute('aria-current', 'step');
 		await expect(mgr.getByText('Team round', { exact: true })).toBeVisible();
 		for (const a of attendees) {
 			await expect(votingCard(a.page).getByRole('heading', { name: 'Team vote' })).toBeVisible();
@@ -257,7 +263,10 @@ test('voting: projects → team round (auto-close) → pitch round → results',
 	});
 
 	await test.step('manager closes the round; the winner is revealed everywhere', async () => {
-		await mgr.getByRole('button', { name: 'Close and reveal winner' }).click();
+		await mgr.getByRole('button', { name: 'Reveal winner…' }).click();
+		const confirm = mgr.getByRole('dialog', { name: 'Reveal the winner?' });
+		await expect(confirm.getByText('4 of 4 ballots cast.')).toBeVisible();
+		await confirm.getByRole('button', { name: 'Reveal winner' }).click();
 		await expect(mgr.getByText('Final ranking')).toBeVisible();
 		const first = mgr.getByRole('region', { name: 'Voting' }).locator('ol').first().locator('li').first();
 		await expect(first).toContainText(winner.name);

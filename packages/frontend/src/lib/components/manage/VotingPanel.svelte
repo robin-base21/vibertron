@@ -1,28 +1,22 @@
 <script lang="ts">
-	import { voting as votingApi } from '$lib/api';
-	import { handleError } from '$lib/stores/toast.svelte';
-	import type {
-		EventDTO,
-		ProjectDTO,
-		TallyRow,
-		TeamDTO,
-		VotingActionBody,
-		VotingStateDTO
-	} from 'common';
+	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
+	import type { EventDTO, ProjectDTO, TallyRow, TeamDTO, VotingStateDTO } from 'common';
 	import { Check } from '@lucide/svelte';
+	import type { LifecycleAction } from './lifecycle';
 
 	interface Props {
 		event: EventDTO;
 		teams: TeamDTO[];
 		projects: ProjectDTO[];
 		voting: VotingStateDTO | null;
-		onchange: (event: EventDTO, voting: VotingStateDTO) => void;
+		busy?: boolean;
+		/** Asks the page to confirm and run a step (the header runs the main steps the same way). */
+		onaction: (action: LifecycleAction) => void;
 	}
 
-	let { event, teams, projects, voting, onchange }: Props = $props();
+	let { event, teams, projects, voting, busy = false, onaction }: Props = $props();
 
 	const phase = $derived(voting?.phase ?? event.votingPhase ?? 'none');
-	let busy = $state(false);
 
 	const teamLabel = (t: TeamDTO) => (t.codename ? `${t.codename}` : t.name);
 	const sortedTeams = $derived(
@@ -34,34 +28,20 @@
 	const memberCount = $derived(teams.reduce((n, t) => n + t.members.length, 0));
 	const progress = $derived(new Map((voting?.group.perTeam ?? []).map((t) => [t.teamId, t])));
 
-	const CONFIRM: Record<VotingActionBody['action'], string | null> = {
-		start: 'Start team voting? Project names lock once voting starts.',
-		'close-group': 'Close the team round now? Teams that haven’t finished are tallied as they are.',
-		'close-pitch': 'Close the pitch round and reveal the winner?',
-		reset: 'Reset voting? All ballots and results are deleted and projects unlock.'
-	};
-
-	async function act(action: VotingActionBody['action']) {
-		const message = CONFIRM[action];
-		if (message && !confirm(message)) return;
-		busy = true;
-		try {
-			const res = await votingApi.action(event.id, { action });
-			onchange(res.event, res.voting);
-		} catch (err) {
-			handleError(err);
-		} finally {
-			busy = false;
-		}
-	}
-
 	const projectName = (id: string) => byId.get(id)?.name ?? id;
-	const teamOf = (id: string) => {
+	const teamOfProject = (id: string) => {
 		const p = byId.get(id);
-		const t = p && teamById.get(p.teamId);
-		return t ? teamLabel(t) : '';
+		return p ? teamById.get(p.teamId) : undefined;
 	};
 </script>
+
+{#snippet byline(projectId: string)}
+	{@const t = teamOfProject(projectId)}
+	<span class="flex min-w-0 items-center gap-1.5 font-mono text-xs opacity-60">
+		{#if t}<TeamSwatch position={t.position} class="size-2.5" />{/if}
+		<span class="truncate">{byId.get(projectId)?.authorName}{t ? ` · ${teamLabel(t)}` : ''}</span>
+	</span>
+{/snippet}
 
 {#snippet ranking(rows: TallyRow[])}
 	<ol class="flex flex-col divide-y divide-bp-line/20 border border-bp-line/40">
@@ -70,9 +50,7 @@
 				<span class="w-8 font-mono text-lg tabular-nums">{String(r.rank).padStart(2, '0')}</span>
 				<span class="flex min-w-0 flex-1 flex-col">
 					<span class="truncate bp-label text-base">{projectName(r.projectId)}</span>
-					<span class="truncate font-mono text-xs opacity-60">
-						{byId.get(r.projectId)?.authorName} · {teamOf(r.projectId)}
-					</span>
+					{@render byline(r.projectId)}
 				</span>
 				{#if r.tieBrokenByDraw}<span class="bp-label text-xs opacity-60">draw</span>{/if}
 				<span class="font-mono text-xs opacity-70">{r.firsts}×1st</span>
@@ -97,33 +75,8 @@
 			</span>
 		</h2>
 		<div class="flex gap-2">
-			{#if phase === 'none'}
-				<button
-					class="btn bp-label btn-primary btn-sm"
-					disabled={busy || projects.length === 0}
-					onclick={() => act('start')}
-				>
-					Start team voting
-				</button>
-			{:else if phase === 'group'}
-				<button
-					class="btn bp-label btn-primary btn-sm"
-					disabled={busy}
-					onclick={() => act('close-group')}
-				>
-					Close team round
-				</button>
-			{:else if phase === 'pitch'}
-				<button
-					class="btn bp-label btn-primary btn-sm"
-					disabled={busy}
-					onclick={() => act('close-pitch')}
-				>
-					Close and reveal winner
-				</button>
-			{/if}
 			{#if phase !== 'none'}
-				<button class="btn btn-ghost bp-label btn-sm" disabled={busy} onclick={() => act('reset')}
+				<button class="btn btn-ghost bp-label btn-sm" disabled={busy} onclick={() => onaction('reset')}
 					>Reset</button
 				>
 			{/if}
@@ -133,12 +86,15 @@
 	{#if phase === 'none'}
 		<p class="font-mono text-xs opacity-60">
 			{projects.length} of {memberCount} members have named a project.
-			{#if projects.length === 0}Voting can start once at least one project exists.{/if}
+			{#if projects.length === 0}Voting can start once at least one project exists.{:else}Start voting from the
+				header when the build is done.{/if}
 		</p>
 		<div class="grid gap-px border border-bp-line/40 bg-bp-line/40 sm:grid-cols-2">
 			{#each sortedTeams as t (t.id)}
 				<div class="flex flex-col gap-1 bg-base-100 p-3">
-					<span class="bp-label text-base">{teamLabel(t)}</span>
+					<span class="flex items-center gap-2 bp-label text-base">
+						<TeamSwatch position={t.position} />{teamLabel(t)}
+					</span>
 					<ul class="flex flex-col text-sm">
 						{#each t.members as m (m.participantId)}
 							{@const p = byParticipant.get(m.participantId)}
@@ -165,7 +121,9 @@
 				{@const g = progress.get(t.id)}
 				{@const done = !!g && g.eligible > 0 && g.cast >= g.eligible}
 				<li class="flex items-center gap-3 px-3 py-2">
-					<span class="flex-1 bp-label text-base">{teamLabel(t)}</span>
+					<span class="flex flex-1 items-center gap-2 bp-label text-base">
+						<TeamSwatch position={t.position} />{teamLabel(t)}
+					</span>
 					{#if !g || g.eligible === 0}
 						<span class="font-mono text-xs opacity-50">
 							{projects.some((p) => p.teamId === t.id) ? 'goes straight through' : 'no projects'}
@@ -187,9 +145,7 @@
 					<span class="w-8 font-mono opacity-60">{String(i + 1).padStart(2, '0')}</span>
 					<span class="flex min-w-0 flex-1 flex-col">
 						<span class="truncate bp-label text-base">{p.name}</span>
-						<span class="truncate font-mono text-xs opacity-60"
-							>{p.authorName} · {teamOf(p.id)}</span
-						>
+						{@render byline(p.id)}
 					</span>
 				</li>
 			{/each}
@@ -204,7 +160,9 @@
 					{@const rows = voting.results.group[t.id]}
 					{#if rows?.length}
 						<div class="flex flex-col gap-1">
-							<span class="bp-label text-xs opacity-60">{teamLabel(t)}</span>
+							<span class="flex items-center gap-2 bp-label text-xs opacity-60">
+								<TeamSwatch position={t.position} class="size-2.5" />{teamLabel(t)}
+							</span>
 							{@render ranking(rows)}
 						</div>
 					{/if}

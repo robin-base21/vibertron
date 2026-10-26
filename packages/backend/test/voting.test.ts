@@ -108,9 +108,13 @@ test('full voting flow: projects → group round (auto-close) → pitch round �
 	expect((await action(a1.c, event.id, 'start')).status).toBe(403);
 	expect((await action(mgr, event.id, 'close-group')).status).toBe(409);
 
+	expect((await snapshot(slug)).event.status).toBe('live');
 	const started = await action(mgr, event.id, 'start');
 	expect(started.status).toBe(200);
 	expect(started.body.event.votingPhase).toBe('group');
+	// starting while the clock runs ends the build
+	expect(started.body.event.status).toBe('ended');
+	expect(started.body.event.endsAt).toBeLessThanOrEqual(Date.now());
 	expect((await tv.next('voting.updated')).voting.phase).toBe('group');
 	expect((await tv.next('event.updated')).event.votingPhase).toBe('group');
 	expect((await action(mgr, event.id, 'start')).status).toBe(409);

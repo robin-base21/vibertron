@@ -206,7 +206,15 @@ export function votingRoutes(app: App): Routes {
 						if (event.status !== 'live' && event.status !== 'ended') throw conflict('Voting needs a live or ended event');
 						if (event.votingPhase !== 'none') throw conflict(`Voting already started (phase: ${event.votingPhase})`);
 						if (projectDTOs(db, event.id).length === 0) throw conflict('No projects have been named yet');
-						updated = casPhase(app, event.id, 'none', 'group');
+						// Starting while the clock still runs ends the build first (the manager confirmed both).
+						updated = db.transaction((tx) => {
+							if (event.status === 'live') {
+								const now = new Date();
+								const endsAt = event.endsAt && event.endsAt < now ? event.endsAt : now;
+								tx.update(events).set({ status: 'ended', endsAt }).where(and(eq(events.id, event.id), eq(events.status, 'live'))).run();
+							}
+							return casPhase(app, event.id, 'none', 'group');
+						});
 						if (!updated) throw conflict('Voting was started concurrently');
 						// Teams with fewer than two projects don't vote; if none vote, go straight to pitches.
 						updated = maybeAutoCloseGroup(app, updated) ?? updated;

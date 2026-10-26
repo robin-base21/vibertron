@@ -96,11 +96,18 @@ export class AttendeeState {
 		return this.projects.find((p) => p.id === id) ?? this.voting?.pitches.find((p) => p.id === id);
 	}
 
+	#team(teamId: string) {
+		return this.teams.find((x) => x.id === teamId) ?? (this.ctx.team?.id === teamId ? this.ctx.team : null);
+	}
+
 	teamName(teamId: string): string {
-		const t =
-			this.teams.find((x) => x.id === teamId) ??
-			(this.ctx.team?.id === teamId ? this.ctx.team : null);
+		const t = this.#team(teamId);
 		return t?.codename ?? t?.name ?? '';
+	}
+
+	/** Launch position (for the team colour), null for an unknown team. */
+	teamPosition(teamId: string): number | null {
+		return this.#team(teamId)?.position ?? null;
 	}
 
 	/** Group-round progress of the attendee's team. */

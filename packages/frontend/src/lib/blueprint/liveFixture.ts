@@ -34,6 +34,7 @@ export function startFixture(
 				id: `team_x${i}`,
 				name: `Team ${i + 1}`,
 				codename: `Squad ${i + 1}`,
+				position: i,
 				members: []
 			});
 		}

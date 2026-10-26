@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Blueprint, ProjectDTO, TeamDTO } from 'common';
+	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
 	import { projectCounts } from './voting';
 
 	interface Props {
@@ -39,9 +40,12 @@
 				flashTeamId === t.id && 'bg-bp-accent/40'
 			]}
 		>
-			<span class={['truncate bp-label font-semibold', !t.codename && 'opacity-50']}
-				>{t.codename ?? 'No codename yet'}</span
-			>
+			<span class="flex min-w-0 items-center gap-[0.4em]">
+				<TeamSwatch position={t.position} class="size-[0.8em]" />
+				<span class={['truncate bp-label font-semibold', !t.codename && 'opacity-50']}
+					>{t.codename ?? 'No codename yet'}</span
+				>
+			</span>
 			<span class="font-mono text-[0.75em] opacity-70">{t.members.length}×</span>
 			<span class="truncate bp-label text-[0.7em] opacity-60"
 				>{t.name} · {segName.get(t.segmentId) ?? t.segmentId}</span

@@ -7,12 +7,13 @@
 	import type { AttendeeState } from '$lib/stores/attendee.svelte';
 	import { clock } from '$lib/stores/clock.svelte';
 	import { errorMessage, handleError } from '$lib/stores/toast.svelte';
-	import { MESSAGE_MAX_LENGTH, MESSAGE_RATE_LIMIT_MS } from 'common';
+	import { MESSAGE_MAX_LENGTH, MESSAGE_RATE_LIMIT_MS, teamColor } from 'common';
 
 	let { state: s }: { state: AttendeeState } = $props();
 
 	const ended = $derived(s.ctx.event.status === 'ended');
 	const team = $derived(s.ctx.team);
+	const color = $derived(team ? teamColor(team.position) : null);
 	const stationLabel = $derived(
 		s.stationNumber === null ? '—' : String(s.stationNumber).padStart(2, '0')
 	);
@@ -91,6 +92,21 @@
 				Thanks for building with us{team?.codename ? `, ${team.codename}` : ''}.
 			</p>
 		</section>
+	{/if}
+
+	{#if team && color}
+		<!-- Team colour band: matches the team's stations on the TV and helps teammates find each other. -->
+		<div class="flex items-center gap-3 px-4 py-3 text-[#0a0a0a]" style:background-color={color.hex}>
+			<span class="bp-label text-2xl font-bold whitespace-nowrap">Team {color.name}</span>
+			<span class="ml-auto truncate bp-label text-lg font-semibold">{team.codename ?? team.name}</span>
+			{#if color.striped}
+				<span
+					class="h-7 w-9 shrink-0"
+					style:background="repeating-linear-gradient(45deg, #0a0a0a 0 3px, transparent 3px 6px)"
+					aria-hidden="true"
+				></span>
+			{/if}
+		</div>
 	{/if}
 
 	{#if team}

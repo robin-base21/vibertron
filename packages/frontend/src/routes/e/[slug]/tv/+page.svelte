@@ -130,7 +130,7 @@
 				</section>
 				<section class="flex min-h-0 flex-1 flex-col gap-[0.4em] overflow-hidden">
 					<h2 class="bp-label text-[0.8em] opacity-60">Messages</h2>
-					<MessageFeed messages={liveEvent.messages} class="min-h-0 overflow-hidden" />
+					<MessageFeed messages={liveEvent.messages} {teams} class="min-h-0 overflow-hidden" />
 				</section>
 			{:else}
 				<div class="border-y border-bp-line/50 py-[0.8em]">

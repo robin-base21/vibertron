@@ -131,6 +131,7 @@ function teamsToDTO(db: DB, rows: (typeof teams.$inferSelect)[]): TeamDTO[] {
 		name: t.name,
 		codename: t.codename,
 		segmentId: t.segmentId,
+		position: t.position,
 		members: members.filter((m) => m.teamId === t.id).map(({ participantId, displayName, stationId }) => ({ participantId, displayName, stationId }))
 	}));
 }

@@ -153,6 +153,8 @@ export interface TeamDTO {
 	name: string;
 	codename: string | null;
 	segmentId: string;
+	/** Launch order (0-based); picks the team colour via teamColor(position). */
+	position: number;
 	members: TeamMemberDTO[];
 }
 

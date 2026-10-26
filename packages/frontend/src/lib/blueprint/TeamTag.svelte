@@ -1,14 +1,16 @@
 <script lang="ts">
 	import type { TeamPlacement } from './geometry';
-	import { FONT_LABEL, secondary, type RenderCtx } from './types';
+	import { FONT_LABEL, PAPER, secondary, type RenderCtx } from './types';
 
 	interface Props {
 		placement: TeamPlacement;
 		ctx: RenderCtx;
 		highlighted?: boolean;
+		/** Team colour; `fill` is the hatch pattern for striped teams. */
+		paint: { color: string; fill: string; striped: boolean };
 	}
 
-	let { placement, ctx, highlighted = false }: Props = $props();
+	let { placement, ctx, highlighted = false, paint }: Props = $props();
 
 	const first = $derived(placement.boxes[0]!);
 	const label = $derived(placement.label.toUpperCase());
@@ -34,12 +36,16 @@
 			width={box.w}
 			height={box.h}
 			fill="none"
-			stroke={ctx.fg}
+			stroke={paint.color}
 			stroke-width={secondary(ctx) * 1.4}
 			stroke-dasharray="{3 * ctx.u * ctx.boost} {2 * ctx.u * ctx.boost}"
 		/>
 	{/each}
-	<rect x={tx} y={ty} width={tagW} height={tagH} fill={ctx.fg} />
+	<rect x={tx} y={ty} width={tagW} height={tagH} fill={paint.color} />
+	{#if paint.striped}
+		<!-- Second colour cycle: a hatched strip under the tag (the label itself stays on solid colour). -->
+		<rect x={tx} y={ty + tagH} width={tagW} height={fs * 0.35} fill={paint.fill} />
+	{/if}
 	<text
 		x={tx + tagW / 2}
 		y={ty + tagH / 2}
@@ -51,6 +57,6 @@
 		dominant-baseline="central"
 		textLength={natural > textW ? textW : undefined}
 		lengthAdjust="spacingAndGlyphs"
-		fill={ctx.bg}>{label}</text
+		fill={PAPER}>{label}</text
 	>
 </g>

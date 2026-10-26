@@ -1,7 +1,17 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { events as eventsApi, invites as invitesApi, launch } from '$lib/api';
+	import { events as eventsApi, invites as invitesApi, launch, voting as votingApi } from '$lib/api';
 	import Countdown from '$lib/components/Countdown.svelte';
+	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
+	import ConfirmDialog from '$lib/components/manage/ConfirmDialog.svelte';
+	import {
+		STAGES,
+		confirmationFor,
+		stageOf,
+		type Confirmation,
+		type LifecycleAction
+	} from '$lib/components/manage/lifecycle';
+	import { clock } from '$lib/stores/clock.svelte';
 	import LaunchDialog from '$lib/components/manage/LaunchDialog.svelte';
 	import Moderation from '$lib/components/manage/Moderation.svelte';
 	import VotingPanel from '$lib/components/manage/VotingPanel.svelte';
@@ -30,9 +40,8 @@
 	let teams = $state<TeamDTO[]>([]);
 	let projects = $state<ProjectDTO[]>([]);
 	let voting = $state<VotingStateDTO | null>(null);
-	const teamLabel = $derived(
-		new Map(teams.map((t) => [t.id, t.codename ? `${t.codename} (${t.name})` : t.name]))
-	);
+	const teamById = $derived(new Map(teams.map((t) => [t.id, t])));
+	const teamLabel = (t: TeamDTO) => (t.codename ? `${t.codename} (${t.name})` : t.name);
 	let busy = $state(false);
 	let launchDialog: LaunchDialog | undefined = $state();
 
@@ -113,12 +122,31 @@
 		}
 	}
 
-	async function endEvent() {
-		if (!confirm('End the event now? The countdown stops and messaging closes.')) return;
+	// ----- lifecycle after launch: every step is confirmed by the manager -----
+	const stage = $derived(stageOf(event, clock.now));
+	const stageIndex = $derived(STAGES.findIndex((s) => s.id === stage));
+	let pending = $state<{ action: LifecycleAction; confirmation: Confirmation } | null>(null);
+
+	function requestAction(action: LifecycleAction) {
+		pending = {
+			action,
+			confirmation: confirmationFor(action, { event, now: clock.now, teams, projects, voting })
+		};
+	}
+
+	async function runPending() {
+		if (!pending) return;
+		const { action } = pending;
 		busy = true;
 		try {
-			const res = await launch.end(eventId);
-			event = res.event;
+			if (action === 'end') {
+				event = (await launch.end(eventId)).event;
+			} else {
+				const res = await votingApi.action(eventId, { action });
+				event = res.event;
+				voting = res.voting;
+			}
+			pending = null;
 		} catch (err) {
 			handleError(err);
 		} finally {
@@ -196,6 +224,24 @@
 			<p class="font-mono text-xs opacity-60">
 				/{event.slug} · ID {event.id} · <span class="tabular-nums">{event.participantCount}</span> participants
 			</p>
+			<ol class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 bp-label text-xs" aria-label="Event stage">
+				{#each STAGES as s, i (s.id)}
+					{#if i > 0}<li class="opacity-30" aria-hidden="true">›</li>{/if}
+					<li
+						class={[
+							i === stageIndex
+								? 'border-b border-bp-accent text-bp-accent'
+								: i < stageIndex
+									? 'opacity-60'
+									: 'opacity-30'
+						]}
+						aria-current={i === stageIndex ? 'step' : undefined}
+					>
+						{s.label}{#if s.id === 'live' && stage === 'live' && event.endsAt}
+							<Countdown endsAt={event.endsAt} class="ml-1 inline font-mono" />{/if}
+					</li>
+				{/each}
+			</ol>
 		</div>
 		<div class="flex flex-wrap gap-2">
 			{#if canToggleJoining}
@@ -221,13 +267,31 @@
 				<button class="btn bp-label btn-primary btn-sm" onclick={() => launchDialog?.open()}
 					>Launch…</button
 				>
-			{:else if event.status === 'live'}
+			{:else if stage === 'live' || stage === 'ended'}
+				{#if stage === 'live'}
+					<button
+						class="btn btn-outline bp-label text-error btn-sm"
+						disabled={busy}
+						onclick={() => requestAction('end')}
+					>
+						End event
+					</button>
+				{/if}
 				<button
-					class="btn btn-outline bp-label text-error btn-sm"
-					disabled={busy}
-					onclick={endEvent}
+					class="btn bp-label btn-primary btn-sm"
+					disabled={busy || projects.length === 0}
+					title={projects.length === 0 ? 'Voting can start once at least one project is named' : undefined}
+					onclick={() => requestAction('start')}
 				>
-					End event
+					Start voting…
+				</button>
+			{:else if stage === 'group'}
+				<button class="btn bp-label btn-primary btn-sm" disabled={busy} onclick={() => requestAction('close-group')}>
+					Close team round…
+				</button>
+			{:else if stage === 'pitch'}
+				<button class="btn bp-label btn-primary btn-sm" disabled={busy} onclick={() => requestAction('close-pitch')}>
+					Reveal winner…
 				</button>
 			{/if}
 			<a class="btn btn-outline bp-label btn-sm" href="/manage/{event.id}/blueprint"
@@ -284,10 +348,8 @@
 					{teams}
 					{projects}
 					{voting}
-					onchange={(next, state) => {
-						event = next;
-						voting = state;
-					}}
+					{busy}
+					onaction={requestAction}
 				/>
 				<Moderation {messages} onupdate={upsertMessage} />
 			{/if}
@@ -322,9 +384,17 @@
 									<tr>
 										<td class="text-base">{p.displayName}</td>
 										<td class="font-mono text-xs">{p.friendCode}</td>
-										<td class="bp-label text-sm opacity-80"
-											>{p.teamId ? (teamLabel.get(p.teamId) ?? '…') : '—'}</td
-										>
+										<td class="bp-label text-sm opacity-80">
+											{#if p.teamId && teamById.get(p.teamId)}
+												<span class="flex items-center gap-2">
+													<TeamSwatch position={teamById.get(p.teamId)!.position} />{teamLabel(
+														teamById.get(p.teamId)!
+													)}
+												</span>
+											{:else}
+												{p.teamId ? '…' : '—'}
+											{/if}
+										</td>
 										<td class="text-right font-mono text-xs opacity-70">
 											{new Date(p.joinedAt).toLocaleTimeString([], {
 												hour: '2-digit',
@@ -428,3 +498,12 @@
 		eventsApi.participants(eventId).then((r) => (participants = r.participants), handleError);
 	}}
 />
+
+{#if pending}
+	<ConfirmDialog
+		confirmation={pending.confirmation}
+		{busy}
+		onconfirm={runPending}
+		onclose={() => (pending = null)}
+	/>
+{/if}
