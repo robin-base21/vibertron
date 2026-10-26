@@ -4,10 +4,12 @@ import { seededRandom } from './teams';
 /*
 Voting rounds, after the build:
   none    -> projects can be named/edited
-  group   -> each team ranks its members' projects (not your own); the top project pitches
-  pitch   -> every attendee ranks the pitches (not your own)
+  group   -> each team ranks all of its members' projects; the top project pitches
+  pitch   -> every attendee ranks all the pitches
   results -> both rounds frozen, winner revealed
-Scoring is Borda on a fixed scale: with N candidates in the round, position i (0-based) earns N - i.
+Everyone ranks everything in the round, their own project included. A round needs at least two
+projects; with fewer there is nothing to decide and nobody votes.
+Scoring is Borda: with N projects in the round, position i (0-based) earns N - i.
 */
 
 export const VotingPhase = z.enum(['none', 'group', 'pitch', 'results']);
@@ -34,11 +36,6 @@ export interface TallyRow {
 	tieBrokenByDraw: boolean;
 }
 
-/** Project ids a voter may rank: everything in `projects` except their own. */
-export function candidatesFor(projects: VoteProject[], voterParticipantId: string): string[] {
-	return projects.filter((p) => p.participantId !== voterParticipantId).map((p) => p.id);
-}
-
 /** Null when `ranking` is an exact permutation of `candidates`, else a reason. */
 export function validateRanking(ranking: string[], candidates: string[]): string | null {
 	if (candidates.length === 0) return 'Nothing to rank';
@@ -46,7 +43,7 @@ export function validateRanking(ranking: string[], candidates: string[]): string
 	const allowed = new Set(candidates);
 	const seen = new Set<string>();
 	for (const id of ranking) {
-		if (!allowed.has(id)) return 'Ranking contains a project you cannot vote for';
+		if (!allowed.has(id)) return 'Ranking contains a project that is not in this round';
 		if (seen.has(id)) return 'Ranking contains a project twice';
 		seen.add(id);
 	}
@@ -54,17 +51,16 @@ export function validateRanking(ranking: string[], candidates: string[]): string
 }
 
 /**
- * Members of a team who vote in the group round. A team with fewer than two projects does not vote:
- * its single project (if any) goes straight to the pitch round.
+ * Members of a team who vote in the group round: all of them, unless the team has fewer than two
+ * projects. Then it does not vote and its single project (if any) goes straight to the pitch round.
  */
 export function groupEligibleVoters(memberIds: string[], teamProjects: VoteProject[]): string[] {
-	if (teamProjects.length < 2) return [];
-	return memberIds.filter((m) => candidatesFor(teamProjects, m).length > 0);
+	return teamProjects.length < 2 ? [] : memberIds;
 }
 
-/** Voters of the pitch round: every attendee with at least one pitch that is not their own. */
+/** Voters of the pitch round: every attendee on a team, when there are at least two pitches. */
 export function pitchEligibleVoters(participantIds: string[], pitches: VoteProject[]): string[] {
-	return participantIds.filter((p) => candidatesFor(pitches, p).length > 0);
+	return pitches.length < 2 ? [] : participantIds;
 }
 
 /** Stable 32-bit seed from parts (FNV-1a), e.g. hashSeed(event.seed, teamId). */

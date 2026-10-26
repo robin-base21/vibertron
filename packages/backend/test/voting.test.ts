@@ -131,7 +131,7 @@ test('full voting flow: projects → group round (auto-close) → pitch round �
 	expect(v0.results).toBeUndefined();
 
 	// rejections
-	expect((await vote(a1, slug, 'group', [pa1.id, pa2.id, pa3.id])).status).toBe(422); // own project
+	expect((await vote(a1, slug, 'group', [pa2.id, pa3.id])).status).toBe(422); // incomplete: own project included
 	expect((await vote(a1, slug, 'group', [pa2.id])).status).toBe(422); // incomplete
 	expect((await vote(a1, slug, 'group', [pa2.id, pa2.id])).status).toBe(422); // duplicate
 	expect((await vote(a1, slug, 'group', [pa2.id, pb1.id])).status).toBe(422); // other team
@@ -139,24 +139,24 @@ test('full voting flow: projects → group round (auto-close) → pitch round �
 	expect((await vote(c2, slug, 'group', [pc1.id])).status).toBe(403); // team C does not vote
 	expect((await vote({ c: mgr, name: 'Host', pid: '' }, slug, 'group', [pa2.id])).status).toBe(403); // not a participant
 
-	// team A: pa1 6 pts, pa2 5, pa3 4 (N = 3: first 3, second 2)
-	const ok = await vote(a1, slug, 'group', [pa3.id, pa2.id]);
+	// team A (N = 3: first 3, second 2, third 1): pa1 8 pts, pa2 6, pa3 4
+	const ok = await vote(a1, slug, 'group', [pa3.id, pa2.id, pa1.id]);
 	expect(ok.status).toBe(200);
 	expect(ok.body.voting.group.perTeam.find((t: any) => t.teamId === teamA.id).cast).toBe(1);
 	expect((await tv.next('voting.updated')).voting.group.perTeam.find((t: any) => t.teamId === teamA.id).cast).toBe(1);
 	// a changed ballot replaces the old one
-	expect((await vote(a1, slug, 'group', [pa2.id, pa3.id])).body.voting.group.perTeam.find((t: any) => t.teamId === teamA.id).cast).toBe(1);
-	expect((await me(a1, slug)).ballots).toEqual({ group: [pa2.id, pa3.id] });
-	await vote(a2, slug, 'group', [pa1.id, pa3.id]);
-	const aDone = await vote(a3, slug, 'group', [pa1.id, pa2.id]);
+	expect((await vote(a1, slug, 'group', [pa2.id, pa1.id, pa3.id])).body.voting.group.perTeam.find((t: any) => t.teamId === teamA.id).cast).toBe(1);
+	expect((await me(a1, slug)).ballots).toEqual({ group: [pa2.id, pa1.id, pa3.id] });
+	await vote(a2, slug, 'group', [pa1.id, pa3.id, pa2.id]);
+	const aDone = await vote(a3, slug, 'group', [pa1.id, pa2.id, pa3.id]);
 	expect(aDone.body.voting.group.teamsDone).toBe(1);
 	expect(aDone.body.voting.phase).toBe('group');
 	// no running scores while voting
 	expect((await snapshot(slug)).voting.results).toBeUndefined();
 
-	// team B: b3 has no project and ranks both; pb2 4 pts, pb1 3 pts
-	await vote(b1, slug, 'group', [pb2.id]);
-	await vote(b2, slug, 'group', [pb1.id]);
+	// team B: everyone ranks both (b3 has no project); pb2 6 pts, pb1 3 pts
+	await vote(b1, slug, 'group', [pb2.id, pb1.id]);
+	await vote(b2, slug, 'group', [pb2.id, pb1.id]);
 	const last = await vote(b3, slug, 'group', [pb2.id, pb1.id]);
 	expect(last.status).toBe(200);
 	expect(last.body.voting.phase).toBe('pitch');
@@ -169,10 +169,10 @@ test('full voting flow: projects → group round (auto-close) → pitch round �
 	expect(ev.event.votingPhase).toBe('pitch');
 	expect((await vote(b3, slug, 'group', [pb1.id, pb2.id])).status).toBe(409); // round closed
 
-	// pitch round: authors cannot rank their own pitch
-	expect((await vote(a1, slug, 'pitch', [pa1.id, pb2.id, pc1.id])).status).toBe(422);
-	expect((await vote(a1, slug, 'pitch', [pb2.id, pc1.id])).status).toBe(200);
-	await vote(b2, slug, 'pitch', [pa1.id, pc1.id]);
+	// pitch round: every pitch is ranked, the voter's own included
+	expect((await vote(a1, slug, 'pitch', [pb2.id, pc1.id])).status).toBe(422);
+	expect((await vote(a1, slug, 'pitch', [pb2.id, pa1.id, pc1.id])).status).toBe(200);
+	await vote(b2, slug, 'pitch', [pa1.id, pb2.id, pc1.id]);
 	await vote(a2, slug, 'pitch', [pb2.id, pa1.id, pc1.id]);
 	await vote(b3, slug, 'pitch', [pb2.id, pc1.id, pa1.id]);
 	const cast = await vote(c2, slug, 'pitch', [pb2.id, pa1.id, pc1.id]);
@@ -185,14 +185,18 @@ test('full voting flow: projects → group round (auto-close) → pitch round �
 	expect(closed.status).toBe(200);
 	expect(closed.body.event.votingPhase).toBe('results');
 	const results = closed.body.voting.results;
-	expect(results.pitch[0]).toMatchObject({ projectId: pb2.id, rank: 1 });
+	expect(results.pitch.map((r: any) => [r.projectId, r.points])).toEqual([
+		[pb2.id, 14],
+		[pa1.id, 10],
+		[pc1.id, 6]
+	]);
 	expect(results.pitch.map((r: any) => r.rank)).toEqual([1, 2, 3]);
 	expect(results.group[teamA.id].map((r: any) => [r.projectId, r.points])).toEqual([
-		[pa1.id, 6],
-		[pa2.id, 5],
+		[pa1.id, 8],
+		[pa2.id, 6],
 		[pa3.id, 4]
 	]);
-	expect(results.group[teamB.id][0]).toMatchObject({ projectId: pb2.id, points: 4 });
+	expect(results.group[teamB.id][0]).toMatchObject({ projectId: pb2.id, points: 6 });
 	expect(results.group[teamC.id]).toHaveLength(1);
 	expect((await snapshot(slug)).voting.results!.pitch[0]!.projectId).toBe(pb2.id);
 	expect((await vote(a2, slug, 'pitch', [pb2.id, pc1.id, pa1.id])).status).toBe(409);
@@ -223,12 +227,13 @@ test('teams with a single project skip the group round entirely', async () => {
 	expect(started.body.voting.pitches.map((p: ProjectDTO) => p.id).sort()).toEqual([p1.id, p2.id].sort());
 	// s3 has no project but is on a team: they rank both pitches
 	expect(started.body.voting.pitch.eligible).toBe(3);
-	expect((await vote(s1, event.slug, 'pitch', [p2.id])).status).toBe(200);
+	expect((await vote(s1, event.slug, 'pitch', [p2.id])).status).toBe(422); // must rank both, own included
+	expect((await vote(s1, event.slug, 'pitch', [p1.id, p2.id])).status).toBe(200);
 	expect((await vote(s3, event.slug, 'pitch', [p1.id, p2.id])).status).toBe(200);
 	const closed = await action(mgr, event.id, 'close-pitch');
-	// p1: 2 (s3), p2: 2 (s1) + 1 (s3) = 3
+	// p1: 2 (s1) + 2 (s3) = 4, p2: 1 + 1 = 2
 	expect(closed.body.voting.results.pitch.map((r: any) => [r.projectId, r.points])).toEqual([
-		[p2.id, 3],
-		[p1.id, 2]
+		[p1.id, 4],
+		[p2.id, 2]
 	]);
 });

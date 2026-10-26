@@ -1,5 +1,4 @@
 import {
-	candidatesFor,
 	groupEligibleVoters,
 	hashSeed,
 	pitchEligibleVoters,
@@ -250,7 +249,7 @@ export function fixtureVoting(
 		);
 		if (own.length === 1) pitches.push(own[0]!);
 		else if (own.length > 1) {
-			const ballots = voters.map((v) => fakeBallot(candidatesFor(own, v), v));
+			const ballots = voters.map((v) => fakeBallot(own.map((p) => p.id), v));
 			groupResults[t.id] = tally(
 				own.map((p) => p.id),
 				ballots,
@@ -270,7 +269,7 @@ export function fixtureVoting(
 	);
 	const pitchTally = tally(
 		pitches.map((p) => p.id),
-		pitchVoters.map((v) => fakeBallot(candidatesFor(pitches, v), v)),
+		pitchVoters.map((v) => fakeBallot(pitches.map((p) => p.id), v)),
 		hashSeed('fixture', 'pitch')
 	);
 	if (draw && pitchTally.length > 1) {

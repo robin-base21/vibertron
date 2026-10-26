@@ -163,10 +163,10 @@ Each phase lists parallel **workstreams** (one subagent each) with the files the
 ### Phase 6: Projects and voting
 Every attendee builds their own project (name + optional tagline). The team codename stays as the team's name. After the build, the manager runs two voting rounds (`events.voting_phase`: `none → group → pitch → results`):
 
-1. **Team voting.** The members of each team drag-rank their teammates' projects; nobody can rank their own. Teams with fewer than two projects don't vote (a single project goes straight through). The round closes automatically once every eligible member has voted, or when the manager force-closes it. Each team's top project pitches.
-2. **Pitch voting.** The TV reveals the pitching projects one by one. Every attendee on a team ranks the pitches except their own. The manager closes the round and the TV reveals the winner and the full ranking.
+1. **Team voting.** The members of each team drag-rank all of the team's projects, their own included. Teams with fewer than two projects don't vote (a single project goes straight through). The round closes automatically once every eligible member has voted, or when the manager force-closes it. Each team's top project pitches.
+2. **Pitch voting.** The TV reveals the pitching projects one by one. Every attendee on a team ranks all the pitches, their own included. The manager closes the round and the TV reveals the winner and the full ranking.
 
-Scoring (`common/src/voting.ts`, pure and unit-tested) is Borda on a fixed scale: with N candidates in the round, position i earns N − i. Ties go to more first places, then a seeded draw (`hashSeed(event.seed, teamId)`), shown as "decided by draw". Ballots can be changed until the round closes. Results are frozen in `voting_results` and hidden until the results phase.
+Scoring (`common/src/voting.ts`, pure and unit-tested) is Borda: every ballot ranks every project in the round, and with N projects position i earns N − i. Ties go to more first places, then a seeded draw (`hashSeed(event.seed, teamId)`), shown as "decided by draw". Ballots can be changed until the round closes. Results are frozen in `voting_results` and hidden until the results phase.
 
 | Workstream | Owns | Deliverables |
 |---|---|---|

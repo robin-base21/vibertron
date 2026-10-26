@@ -2,7 +2,6 @@ import {
 	BallotBody,
 	ProjectBody,
 	VotingActionBody,
-	candidatesFor,
 	groupEligibleVoters,
 	hashSeed,
 	pitchEligibleVoters,
@@ -152,11 +151,11 @@ export function votingRoutes(app: App): Routes {
 					const teamProjects = projectDTOs(db, event.id).filter((p) => p.teamId === teamId);
 					const members = teamRosters(db, event.id).find((r) => r.teamId === teamId)?.memberIds ?? [];
 					if (!groupEligibleVoters(members, teamProjects).includes(participant.id)) throw forbidden('Your team does not vote in this round');
-					candidates = candidatesFor(teamProjects, participant.id);
+					candidates = teamProjects.map((p) => p.id);
 				} else {
 					const pitches = pitchProjects(db, event.id);
-					if (!pitchEligibleVoters([participant.id], pitches).length) throw forbidden('There is nothing for you to rank');
-					candidates = candidatesFor(pitches, participant.id);
+					if (!pitchEligibleVoters([participant.id], pitches).length) throw forbidden('There is only one pitch, nothing to rank');
+					candidates = pitches.map((p) => p.id);
 				}
 				const invalid = validateRanking(body.ranking, candidates);
 				if (invalid) throw new HttpError(422, 'invalid_ranking', invalid, { candidates });

@@ -181,7 +181,7 @@
 					></div>
 				</div>
 				<p class="text-[0.85em] opacity-70">
-					Rank the pitches on your phone. You can't vote for your own.
+					Rank all the pitches on your phone.
 				</p>
 			</footer>
 		{/if}

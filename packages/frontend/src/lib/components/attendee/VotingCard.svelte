@@ -60,7 +60,6 @@
 	const ownTeamPasses = $derived(
 		s.teamProjects.length === 1 && s.teamProjects[0]!.participantId === s.me.id
 	);
-	const pitching = $derived(!!s.project && !!s.voting?.pitches.some((p) => p.id === s.project!.id));
 </script>
 
 {#if s.phase !== 'none'}
@@ -85,15 +84,14 @@
 				</p>
 				<p class="font-mono text-xs opacity-60">
 					{round === 'group'
-						? 'Your team has nothing for you to rank this round.'
-						: 'The only pitch is yours. Good luck!'}
+						? 'Your team has fewer than two projects, so there is nothing to rank.'
+						: 'There is only one pitch, so there is nothing to rank.'}
 				</p>
 			{:else}
 				<p class="font-mono text-xs opacity-70">
 					{round === 'group'
-						? 'Rank your teammates’ projects, best first. The top one pitches to the room.'
-						: 'Rank the pitches, best first.'}
-					{#if round === 'pitch' && pitching}Yours is pitching, so it isn’t on your list.{/if}
+						? 'Rank your team’s projects, best first, yours included. The top one pitches to the room.'
+						: 'Rank all the pitches, best first, yours included.'}
 				</p>
 				<RankList bind:order label={(id) => s.projectById(id)?.name ?? id} disabled={saving}>
 					{#snippet row(id)}

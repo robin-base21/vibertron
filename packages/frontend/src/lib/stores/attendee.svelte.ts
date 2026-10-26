@@ -2,7 +2,6 @@ import { attendee } from '$lib/api';
 import { handleError } from '$lib/stores/toast.svelte';
 import { wsStore } from '$lib/stores/websocket.svelte';
 import {
-	candidatesFor,
 	parseStationId,
 	type AttendeeContextDTO,
 	type LiveSnapshotDTO,
@@ -86,10 +85,10 @@ export class AttendeeState {
 		return teamId ? this.projects.filter((p) => p.teamId === teamId) : [];
 	}
 
-	/** Project ids the attendee may rank in `round` (never their own). */
+	/** Project ids to rank in `round`: all of them, own included; none when there is only one. */
 	candidates(round: VoteRound): string[] {
 		const pool = round === 'group' ? this.teamProjects : (this.voting?.pitches ?? []);
-		return candidatesFor(pool, this.me.id);
+		return pool.length < 2 ? [] : pool.map((p) => p.id);
 	}
 
 	projectById(id: string): ProjectDTO | undefined {

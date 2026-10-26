@@ -202,11 +202,10 @@ test('voting: projects → team round (auto-close) → pitch round → results',
 		}
 	});
 
-	await test.step('team round: each member ranks their teammate; the round closes by itself', async () => {
+	await test.step('team round: each member ranks both team projects, own included; the round closes by itself', async () => {
 		for (const [i, a] of attendees.entries()) {
-			// Teams of 2: the only candidate is the teammate's project, never your own.
-			await expect(rows(a.page)).toHaveCount(1);
-			expect(await rankedNames(a.page)).not.toContain(projectName(a.name));
+			await expect(rows(a.page)).toHaveCount(2);
+			expect(await rankedNames(a.page)).toContain(projectName(a.name));
 			await submitBallot(a.page, i === attendees.length - 1);
 		}
 		await expect(mgr.getByText('Pitch round', { exact: true })).toBeVisible();
@@ -233,12 +232,13 @@ test('voting: projects → team round (auto-close) → pitch round → results',
 	});
 
 	await test.step('pitch round: drag on one phone, ▲/▼ on another, ballot change before close', async () => {
-		// Pitchers only see the other pitch.
+		// Everyone ranks both pitches; each pitcher puts their own first.
 		for (const n of pitchers) {
-			const page = byName(n).page;
-			await expect(rows(page)).toHaveCount(1);
-			expect(await rankedNames(page)).not.toContain(projectName(n));
-			await submitBallot(page);
+			const pitcher = byName(n);
+			await expect(rows(pitcher.page)).toHaveCount(2);
+			await buttonsToTop(pitcher, projectName(n));
+			expect((await rankedNames(pitcher.page))[0]).toBe(projectName(n));
+			await submitBallot(pitcher.page);
 		}
 
 		const [dragger, clicker] = [byName(others[0]!), byName(others[1]!)];
@@ -270,7 +270,8 @@ test('voting: projects → team round (auto-close) → pitch round → results',
 		await expect(mgr.getByText('Final ranking')).toBeVisible();
 		const first = mgr.getByRole('region', { name: 'Voting' }).locator('ol').first().locator('li').first();
 		await expect(first).toContainText(winner.name);
-		await expect(first).toContainText('6 pts');
+		// N = 2: winner 2 (own pitcher) + 1 (other pitcher) + 2 + 2 = 7
+		await expect(first).toContainText('7 pts');
 
 		for (const a of attendees) {
 			const card = votingCard(a.page);
