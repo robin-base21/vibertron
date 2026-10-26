@@ -1,11 +1,14 @@
 <script lang="ts">
+	import LogoMark from '$lib/components/LogoMark.svelte';
 	import { session } from '$lib/stores/session.svelte';
 </script>
 
 <main class="mx-auto flex max-w-3xl flex-col gap-10 px-4 py-12 sm:py-20">
 	<section class="flex flex-col gap-4">
 		<p class="bp-label text-sm opacity-60">Hackathon companion</p>
-		<h1 class="bp-label text-6xl font-semibold sm:text-8xl">Vibertron</h1>
+		<h1 class="flex items-center gap-4 bp-label text-6xl font-semibold sm:gap-6 sm:text-8xl">
+			<LogoMark class="h-[0.75em] w-auto" />Vibertron
+		</h1>
 		<p class="max-w-xl font-mono text-sm leading-relaxed opacity-70">
 			Scan the code at the venue, pair up with a friend, and get your team and workstation on a live
 			blueprint of the room when the event launches.

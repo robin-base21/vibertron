@@ -1,3 +1,5 @@
+<p><img src="packages/frontend/static/logo.svg" alt="Vibertron" height="40"></p>
+
 # Vibertron
 
 Companion web app for organising and running vibeathons and hackathons.

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import './layout.css';
-	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import LogoMark from '$lib/components/LogoMark.svelte';
 	import Toasts from '$lib/components/Toasts.svelte';
 	import { session } from '$lib/stores/session.svelte';
 	import { handleError } from '$lib/stores/toast.svelte';
@@ -35,7 +35,6 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
 	<title>Vibertron</title>
 </svelte:head>
 
@@ -43,7 +42,9 @@
 	{#if !bare}
 		<header class="border-b border-bp-line/40">
 			<nav class="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
-				<a href="/" class="mr-auto bp-label text-xl font-semibold tracking-[0.2em]">Vibertron</a>
+				<a href="/" class="mr-auto flex items-center gap-2.5 bp-label text-xl font-semibold tracking-[0.2em]">
+					<LogoMark class="h-5 w-auto" />Vibertron
+				</a>
 				{#if session.is('admin')}
 					<a
 						href="/admin"

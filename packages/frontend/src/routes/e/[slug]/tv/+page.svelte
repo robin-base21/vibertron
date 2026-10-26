@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import Blueprint from '$lib/blueprint/Blueprint.svelte';
+	import LogoMark from '$lib/components/LogoMark.svelte';
 	import BigCountdown from '$lib/blueprint/live/BigCountdown.svelte';
 	import MessageFeed from '$lib/blueprint/live/MessageFeed.svelte';
 	import PagedTeamList from '$lib/blueprint/live/PagedTeamList.svelte';
@@ -156,7 +157,8 @@
 						wsStore.connected || data.fixture ? 'bg-bp-line' : 'border border-bp-line'
 					]}
 				></span>
-				{wsStore.connected || data.fixture ? 'LIVE' : 'RECONNECTING'} · VIBERTRON
+				{wsStore.connected || data.fixture ? 'LIVE' : 'RECONNECTING'} ·
+				<LogoMark class="h-[1.1em] w-auto" />VIBERTRON
 			</footer>
 		{/if}
 	</aside>
