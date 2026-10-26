@@ -1,6 +1,7 @@
 // Typed wrappers for every endpoint in common/src/api.ts. UI code never builds URLs by hand.
 // Request bodies are parsed with the shared zod schemas before sending.
 import {
+	type BlueprintLibraryItemDTO,
 	AnalyzeBody,
 	BallotBody,
 	CodenameBody,
@@ -151,6 +152,11 @@ export const blueprints = {
 		form.append('file', file);
 		return api<{ imageRef: string }>(`/api/events/${e(eventId)}/uploads`, { body: form });
 	},
+	/** Saved blueprints of the manager's other events (admins: all events), newest first. */
+	library: (excludeEventId?: string) =>
+		api<{ items: BlueprintLibraryItemDTO[] }>(
+			`/api/blueprints/library${excludeEventId ? `?exclude=${e(excludeEventId)}` : ''}`
+		),
 	/** URL for an uploaded image (public, for <img src>). */
 	uploadUrl: (imageRef: string) => `${API_BASE}/api/uploads/${e(imageRef)}`,
 	analyze: (eventId: string, body: In<typeof AnalyzeBody>) =>

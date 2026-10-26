@@ -1,10 +1,10 @@
-import { AnalyzeBody, SaveBlueprintBody } from 'common';
-import { eq } from 'drizzle-orm';
+import { AnalyzeBody, Blueprint, SaveBlueprintBody, type BlueprintLibraryItemDTO } from 'common';
+import { desc, eq } from 'drizzle-orm';
 import { join } from 'node:path';
 import { analyzeFloorplan } from '../ai/analyze';
 import type { App, Routes } from '../app';
-import { requireEventManager } from '../auth/guards';
-import { blueprints, uploads } from '../db/schema';
+import { requireEventManager, requireRole } from '../auth/guards';
+import { blueprints, events, uploads } from '../db/schema';
 import { loadBlueprint } from '../dto';
 import { HttpError, badRequest, conflict, json, notFound, parseBody } from '../http';
 
@@ -54,6 +54,36 @@ export function blueprintRoutes(app: App): Routes {
 				});
 				app.live.toEvent(event.id, { type: 'blueprint.updated', eventId: event.id, blueprint: body.blueprint });
 				return json({ version });
+			}
+		},
+		'/api/blueprints/library': {
+			GET: (req) => {
+				const user = requireRole(app, req, 'manager');
+				const exclude = new URL(req.url).searchParams.get('exclude');
+				const rows = db
+					.select({ event: events, json: blueprints.json, updatedAt: blueprints.updatedAt })
+					.from(blueprints)
+					.innerJoin(events, eq(events.id, blueprints.eventId))
+					.where(user.role === 'admin' ? undefined : eq(events.managerId, user.id))
+					.orderBy(desc(blueprints.updatedAt))
+					.all();
+				const items: BlueprintLibraryItemDTO[] = [];
+				for (const r of rows) {
+					if (r.event.id === exclude) continue;
+					const parsed = Blueprint.safeParse(JSON.parse(r.json));
+					// Skip unreadable and blank blueprints; there is nothing to reuse.
+					if (!parsed.success || (parsed.data.segments.length === 0 && parsed.data.walls.length === 0 && parsed.data.outlines.length === 0)) continue;
+					items.push({
+						eventId: r.event.id,
+						eventName: r.event.name,
+						eventSlug: r.event.slug,
+						status: r.event.status,
+						startedAt: r.event.startedAt?.getTime() ?? null,
+						updatedAt: r.updatedAt.getTime(),
+						blueprint: parsed.data
+					});
+				}
+				return json({ items });
 			}
 		},
 		'/api/events/:id/uploads': {

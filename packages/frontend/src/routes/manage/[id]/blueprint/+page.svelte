@@ -4,6 +4,7 @@
 	import { totalStations, unconfirmedSegments, type Blueprint as BlueprintT } from 'common';
 	import {
 		ArrowLeft,
+		Copy,
 		Download,
 		Eye,
 		EyeOff,
@@ -21,6 +22,7 @@
 	} from '@lucide/svelte';
 	import Blueprint from '$lib/blueprint/Blueprint.svelte';
 	import ImportDialog from '$lib/floorplan/ImportDialog.svelte';
+	import ReuseDialog from '$lib/blueprint/editor/ReuseDialog.svelte';
 	import EditorCanvas from '$lib/blueprint/editor/EditorCanvas.svelte';
 	import MarkupPanel from '$lib/blueprint/editor/MarkupPanel.svelte';
 	import SegmentPanel from '$lib/blueprint/editor/SegmentPanel.svelte';
@@ -49,6 +51,7 @@
 	let exporting = $state(false);
 	let exportSvg = $state<SVGSVGElement>();
 	let importing = $state(false);
+	let reusing = $state(false);
 
 	function acceptDraft(next: BlueprintT) {
 		editor.apply(next);
@@ -56,6 +59,15 @@
 		showUnderlay = true;
 		importing = false;
 		toasts.success(`Draft applied: ${next.walls.length} walls, ${next.segments.length} segments. Review names and set station counts.`);
+	}
+
+	/** Copy another event's plan; this event keeps its own title block. */
+	function acceptReuse(next: BlueprintT, from: { eventName: string }) {
+		editor.apply({ ...structuredClone(next), titleBlock: { ...editor.bp.titleBlock } });
+		editor.select(null);
+		showUnderlay = true;
+		reusing = false;
+		toasts.success(`Floorplan from ${from.eventName} applied. Check the station counts, then save.`);
 	}
 
 	// The backend rejects saves while the event runs; make that obvious instead of failing on save.
@@ -269,6 +281,9 @@
 			</div>
 		{/if}
 		<div class="ml-auto flex flex-wrap gap-2">
+			<button class="btn btn-sm btn-outline bp-label" onclick={() => (reusing = true)} disabled={locked} title="Reuse a floorplan from another event">
+				<Copy size={14} /> Reuse floorplan
+			</button>
 			<button class="btn btn-sm btn-outline bp-label" onclick={() => (importing = true)} disabled={locked} title="Import floorplan">
 				<ImageUp size={14} /> Import floorplan
 			</button>
@@ -364,6 +379,10 @@
 		onaccept={acceptDraft}
 		onclose={() => (importing = false)}
 	/>
+{/if}
+
+{#if reusing}
+	<ReuseDialog eventId={data.eventId} offline={data.fixture} onaccept={acceptReuse} onclose={() => (reusing = false)} />
 {/if}
 
 {#if conflict}

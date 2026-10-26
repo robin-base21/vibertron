@@ -131,3 +131,37 @@ test('analyze v2: marked image goes to the model, original stays the underlay', 
 	await mgr.post(`/api/events/${eventId}/blueprint/analyze`, { ...body, markedImageRef: undefined });
 	expect(lastAiBody.messages[1].content[1].image_url.url).toStartWith('data:image/png;base64,');
 });
+
+test('blueprint library: own events only, excludes the current one, skips blank plans', async () => {
+	const seg = { id: 's1', name: 'Hall', shape: 'rect' as const, points: [[0, 0], [100, 100]] as [number, number][], labelPos: [50, 50] as [number, number], stations: { count: 8, layout: 'grid' as const, confirmed: true } };
+	const ref = (await mgr.post(`/api/events/${eventId}/uploads`, upload(PNG))).body.imageRef;
+	const venue = { ...emptyBlueprint('Venue', '2026-10-24'), segments: [seg], underlay: { imageRef: ref, opacity: 0.4 } };
+	const past = (await mgr.post('/api/events', { name: 'Past Event' })).body.event;
+	expect((await mgr.put(`/api/events/${past.id}/blueprint`, { blueprint: venue, version: 0 })).status).toBe(200);
+	const blank = (await mgr.post('/api/events', { name: 'Blank Event' })).body.event;
+	await mgr.put(`/api/events/${blank.id}/blueprint`, { blueprint: emptyBlueprint(), version: 0 });
+
+	// Another manager's plan is never offered.
+	const admin = srv.client();
+	await admin.login(ADMIN.email, ADMIN.password);
+	await admin.post('/api/admin/users', { email: 'other@test.dev', password: 'manager-pw', displayName: 'Other', role: 'manager' });
+	const other = srv.client();
+	await other.login('other@test.dev', 'manager-pw');
+	const theirs = (await other.post('/api/events', { name: 'Their Event' })).body.event;
+	await other.put(`/api/events/${theirs.id}/blueprint`, { blueprint: venue, version: 0 });
+
+	const lib = await mgr.get(`/api/blueprints/library?exclude=${eventId}`);
+	expect(lib.status).toBe(200);
+	expect(lib.body.items.map((i: any) => i.eventName)).toEqual(['Past Event']);
+	expect(lib.body.items[0].blueprint.segments[0].stations.count).toBe(8);
+	expect((await other.get('/api/blueprints/library')).body.items.map((i: any) => i.eventName)).toEqual(['Their Event']);
+	// Admins see every manager's plans.
+	expect((await admin.get('/api/blueprints/library')).body.items.length).toBe(2);
+	expect((await srv.client().get('/api/blueprints/library')).status).toBe(401);
+
+	// Reusing: the copied plan saves into the new event and its underlay still loads.
+	const reused = { ...lib.body.items[0].blueprint, titleBlock: { project: 'Plan Event', date: '2026-10-26', rev: 'A' } };
+	const v = (await mgr.get(`/api/events/${eventId}/blueprint`)).body.version;
+	expect((await mgr.put(`/api/events/${eventId}/blueprint`, { blueprint: reused, version: v })).status).toBe(200);
+	expect((await fetch(`${srv.url}/api/uploads/${ref}`)).status).toBe(200);
+});

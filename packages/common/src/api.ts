@@ -47,6 +47,7 @@ Blueprints (event manager)
   PUT    /api/events/:id/blueprint          SaveBlueprintBody    -> { version: number }     (409 on version mismatch)
   POST   /api/events/:id/uploads            multipart "file"     -> { imageRef: string }
   GET    /api/uploads/:imageRef                                  -> image bytes (public; refs are unguessable)
+  GET    /api/blueprints/library?exclude=:eventId                -> { items: BlueprintLibraryItemDTO[] }  (manager: own events; admin: all)
   POST   /api/events/:id/blueprint/analyze  AnalyzeBody          -> AnalyzeResultDTO
 Launch / live (event manager)
   POST   /api/events/:id/launch/preview     LaunchPreviewBody    -> LaunchPreviewDTO
@@ -225,6 +226,18 @@ export interface LaunchPreviewDTO {
 	stationsAvailable: number;
 	unconfirmedSegments: string[];
 	message?: string;
+}
+
+/** A saved blueprint from another event, offered for reuse in the editor. Newest first. */
+export interface BlueprintLibraryItemDTO {
+	eventId: string;
+	eventName: string;
+	eventSlug: string;
+	status: EventStatus;
+	/** When the event ran (null if it never launched). */
+	startedAt: number | null;
+	updatedAt: number;
+	blueprint: Blueprint;
 }
 
 /** OpenRouter result: suggested segments (confirmed=false) plus outlines echoed back. */

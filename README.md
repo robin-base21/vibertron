@@ -30,7 +30,7 @@ Sign in at http://localhost:3000/login with the admin account, then create a man
 ### Running an event
 
 1. **Events → New event**, then **Open joining**.
-2. **Edit blueprint**: draw segments, set station counts, and confirm them, or use **Import floorplan**. Import runs an OpenCV contour pass in the browser, then an OpenRouter vision model labels the areas. Text editing is available in the **Markup** tab.
+2. **Edit blueprint**: draw segments, set station counts, and confirm them, or use **Import floorplan**. Import runs an OpenCV contour pass in the browser, then an OpenRouter vision model labels the areas. Text editing is available in the **Markup** tab. Running at the same venue again? **Reuse floorplan** copies the blueprint from one of your earlier events.
 3. Create an **invite**, then **Show QR on screen** on the venue display. The code rotates every 30 s, so only people in the room can join.
 4. Open the **TV** view on the big screen.
 5. **Launch**: pick a team size and duration. Teams are randomised, friends stay together, and everyone gets a workstation.
