@@ -92,6 +92,6 @@ The event app publishes results to the site inside Docker (`http://site:3100/api
 path never goes through Pangolin. The site's data (SQLite, flyers, slides, payment screenshots) lives
 in the `vibertron-site-data` volume.
 
-Alternative: `docker compose -f docker-compose.yml -f docker-compose.pangolin.yml up -d --build`
-joins the containers to Pangolin's Docker network instead (targets `vibertron-site:3100` etc.) and
-publishes no host ports at all.
+If Pangolin's targets are container names instead of IP and port, also add the containers to
+Pangolin's Docker network: `docker compose -f docker-compose.yml -f docker-compose.pangolin.yml up -d --build`
+(targets `vibertron-site:3100`, `vibertron-backend:3001`, `vibertron-frontend:3000`). Host ports stay.
