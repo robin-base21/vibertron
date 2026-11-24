@@ -1,0 +1,31 @@
+# Production behind Pangolin on the same host:
+#   docker compose -f docker-compose.yml -f docker-compose.pangolin.yml up -d --build
+#
+# Joins the containers to Pangolin's Docker network, so Pangolin's Traefik reaches them by name
+# (vibertron-frontend:3000, vibertron-backend:3001, vibertron-site:3100), and stops publishing their
+# ports on the host: everything goes through Pangolin (HTTPS). Check the network's name with
+# `docker network ls` (the Pangolin installer calls it "pangolin"); set PANGOLIN_NETWORK if it differs.
+
+services:
+  backend:
+    ports: !reset []
+    networks:
+      - vibertron-network
+      - pangolin
+
+  frontend:
+    ports: !reset []
+    networks:
+      - vibertron-network
+      - pangolin
+
+  site:
+    ports: !reset []
+    networks:
+      - vibertron-network
+      - pangolin
+
+networks:
+  pangolin:
+    external: true
+    name: ${PANGOLIN_NETWORK:-pangolin}

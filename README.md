@@ -70,3 +70,28 @@ docker compose up --build
 ```
 
 The backend runs migrations and seeds on boot. SQLite and uploads live in the `vibertron-data` volume.
+
+### Behind Pangolin (same host)
+
+Set the host ports in `.env` (no edits to `docker-compose.yml` needed):
+
+```sh
+FRONTEND_PORT=3080
+BACKEND_PORT=3081
+SITE_PORT=3082
+```
+
+Then `docker compose up -d --build`, and in Pangolin (local site):
+
+| Domain | Target |
+|---|---|
+| `vibe.ourbusan.life` | host port `3082`, authentication off (public site) |
+| the event app's domain | `/api` and `/ws` → port `3081`, everything else → port `3080` |
+
+The event app publishes results to the site inside Docker (`http://site:3100/api/results`), so that
+path never goes through Pangolin. The site's data (SQLite, flyers, slides, payment screenshots) lives
+in the `vibertron-site-data` volume.
+
+Alternative: `docker compose -f docker-compose.yml -f docker-compose.pangolin.yml up -d --build`
+joins the containers to Pangolin's Docker network instead (targets `vibertron-site:3100` etc.) and
+publishes no host ports at all.

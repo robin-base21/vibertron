@@ -5,7 +5,7 @@ services:
       dockerfile: packages/backend/Dockerfile
     container_name: vibertron-backend
     ports:
-      - "3001:3001"
+      - "${BACKEND_PORT:-3001}:3001"
     environment:
       - NODE_ENV=production
       - DATABASE_PATH=/data/vibertron.sqlite
@@ -32,7 +32,7 @@ services:
       dockerfile: packages/frontend/Dockerfile
     container_name: vibertron-frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -52,7 +52,7 @@ services:
       dockerfile: packages/site/Dockerfile
     container_name: vibertron-site
     ports:
-      - "3100:3100"
+      - "${SITE_PORT:-3100}:3100"
     environment:
       - NODE_ENV=production
       # Public URL of the site: SvelteKit's CSRF check behind the proxy, and every link in emails.
@@ -69,9 +69,6 @@ services:
       - PPQ_API_KEY=${PPQ_API_KEY:-}
       - SITE_AI_TEXT_MODEL=${SITE_AI_TEXT_MODEL:-}
       - SITE_AI_IMAGE_MODEL=${SITE_AI_IMAGE_MODEL:-}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - SITE_AI_TEXT_MODEL=${SITE_AI_TEXT_MODEL:-anthropic/claude-sonnet-5.5}
-      - SITE_AI_IMAGE_MODEL=${SITE_AI_IMAGE_MODEL:-google/gemini-3-pro-image}
       # Served over HTTPS: admin and signup cookies are Secure (false only for a local http test).
       - COOKIE_SECURE=${SITE_COOKIE_SECURE:-true}
     volumes:
