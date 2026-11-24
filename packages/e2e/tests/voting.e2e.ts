@@ -58,13 +58,13 @@ async function touchDrag(a: Attendee, handle: Locator, dy: number) {
 	await cdp.detach();
 }
 
-/** Puts `name` first by touch-dragging its row above the first row. */
+/** Puts `name` first by touch-dragging its row above the first row (rows can differ in height). */
 async function dragToTop(a: Attendee, name: string) {
 	const row = rows(a.page).filter({ hasText: name });
 	const first = rows(a.page).first();
 	const [rowBox, firstBox] = [(await row.boundingBox())!, (await first.boundingBox())!];
 	if (rowBox.y === firstBox.y) return;
-	await touchDrag(a, row.getByRole('button', { name: /^Drag / }), firstBox.y - rowBox.y - 10);
+	await touchDrag(a, row.getByRole('button', { name: /^Drag / }), firstBox.y - rowBox.y - rowBox.height / 2);
 }
 
 /** Puts `name` first with the ▲ buttons. */
@@ -174,11 +174,30 @@ test('voting: projects → team round (auto-close) → pitch round → results',
 			const card = a.page.getByRole('region', { name: 'Your project' });
 			await card.getByPlaceholder('Project name').fill(projectName(a.name));
 			await card.getByPlaceholder('One-line pitch (optional)').fill(`${a.name}'s idea`);
+			// The public-website choice is required (no default): Bo keeps theirs private.
+			await expect(card.getByRole('button', { name: 'Save project' })).toBeDisabled();
+			await card.getByLabel(a.name === 'Bo' ? 'No, keep it private' : 'Yes, show my project and name').check();
 			await card.getByRole('button', { name: 'Save project' }).click();
 			await expect(card.getByText(projectName(a.name), { exact: true })).toBeVisible();
 		}
-		await expect(mgr.getByText('4 of 4 members have named a project.')).toBeVisible();
+		await expect(mgr.getByText('4 of 4 members have named a project')).toBeVisible();
 		expect((await snapshot()).projects).toHaveLength(4);
+	});
+
+	await test.step('Ada submits a link and a presentation PDF', async () => {
+		const card = byName('Ada').page.getByRole('region', { name: 'Your project' });
+		await card.getByRole('button', { name: 'Edit' }).click();
+		await card.getByLabel('Project link').fill('https://github.com/ada/proj');
+		await card.getByRole('button', { name: 'Save project' }).click();
+		await expect(card.getByRole('link', { name: 'github.com' })).toBeVisible();
+		await card.locator('input[type=file]').setInputFiles({
+			name: 'deck.pdf',
+			mimeType: 'application/pdf',
+			buffer: Buffer.from('%PDF-1.4\n% e2e deck\n%%EOF\n')
+		});
+		await expect(card.getByText('Presentation uploaded')).toBeVisible();
+		await expect(card.getByRole('link', { name: 'Slides' })).toBeVisible();
+		await expect(mgr.getByText('1 with a link or slides')).toBeVisible();
 	});
 
 	// The TV stays open: every phase change below must reach it over WS.
@@ -203,6 +222,12 @@ test('voting: projects → team round (auto-close) → pitch round → results',
 	});
 
 	await test.step('team round: each member ranks both team projects, own included; the round closes by itself', async () => {
+		// Ada's teammate sees her link and slides while ranking.
+		const adaTeam = (await snapshot()).teams.find((t) => t.members.some((m) => m.displayName === 'Ada'))!;
+		const mate = byName(adaTeam.members.find((m) => m.displayName !== 'Ada')!.displayName);
+		const adaRow = rows(mate.page).filter({ hasText: projectName('Ada') });
+		await expect(adaRow.getByRole('link', { name: 'github.com' })).toBeVisible();
+		await expect(adaRow.getByRole('link', { name: 'Slides' })).toHaveAttribute('href', /\/api\/projects\/.+\/deck$/);
 		for (const [i, a] of attendees.entries()) {
 			await expect(rows(a.page)).toHaveCount(2);
 			expect(await rankedNames(a.page)).toContain(projectName(a.name));

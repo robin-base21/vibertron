@@ -1,0 +1,37 @@
+{
+	"name": "site",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "bunx --bun vite dev",
+		"build": "bunx --bun vite build",
+		"preview": "bunx --bun vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"db:generate": "drizzle-kit generate",
+		"format": "prettier --write ."
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-node": "^5.5.4",
+		"@sveltejs/kit": "^2.57.0",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
+		"@tailwindcss/vite": "^4.2.2",
+		"@types/bun": "^1.4.4",
+		"drizzle-kit": "^0.31.11",
+		"prettier": "^3.8.1",
+		"prettier-plugin-svelte": "^3.5.1",
+		"prettier-plugin-tailwindcss": "^0.7.2",
+		"svelte": "^5.55.2",
+		"svelte-check": "^4.4.6",
+		"tailwindcss": "^4.2.2",
+		"typescript": "^6.0.2",
+		"vite": "^8.0.7"
+	},
+	"dependencies": {
+		"@lucide/svelte": "^1.16.0",
+		"common": "workspace:*",
+		"drizzle-orm": "^0.45.4",
+		"zod": "^4.6.7"
+	}
+}

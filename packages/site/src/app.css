@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+
+/* Bright, playful neo-brutalist look: one hot brand colour, black ink, thick borders, hard shadows. */
+@theme {
+	--font-sans: 'Elms Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-display: 'Lilita One', system-ui, sans-serif;
+	--color-brand: #ff4929;
+	--color-brand-deep: #e23a1c;
+	--color-ink: #121212;
+	--color-cream: #faf6f3;
+	--color-blush: #ffdcd2;
+}
+
+@layer base {
+	body {
+		@apply bg-white font-sans text-ink antialiased;
+	}
+	::selection {
+		@apply bg-brand text-white;
+	}
+}
+
+@utility card {
+	@apply rounded-2xl border-2 border-ink bg-white shadow-[5px_5px_0_0_var(--color-ink)];
+}
+@utility card-hover {
+	@apply transition-transform duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[7px_7px_0_0_var(--color-ink)];
+}
+@utility btn-ink {
+	@apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-ink bg-ink px-6 py-3 font-semibold text-white transition-transform duration-150 hover:-translate-y-0.5 disabled:opacity-50;
+}
+@utility btn-line {
+	@apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-ink px-6 py-3 font-semibold transition-transform duration-150 hover:-translate-y-0.5;
+}
+@utility btn-brand {
+	@apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-ink bg-brand px-6 py-3 font-semibold text-ink transition-transform duration-150 hover:-translate-y-0.5 disabled:opacity-50;
+}
+/* Tilted hand-made label above section titles. */
+@utility sticker {
+	@apply inline-block -rotate-2 rounded-full bg-brand px-3.5 py-1 font-display text-xs tracking-wide text-ink uppercase;
+}
+@utility tag {
+	@apply inline-flex items-center rounded-full border border-ink px-2.5 py-0.5 text-xs;
+}
+@utility pill {
+	@apply inline-flex items-center rounded-full bg-blush px-2.5 py-0.5 text-xs font-medium text-brand-deep;
+}
+@utility field {
+	@apply w-full rounded-xl border-2 border-ink bg-white px-4 py-3 outline-none focus:shadow-[3px_3px_0_0_var(--color-brand)];
+}
+@utility shell {
+	@apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+}

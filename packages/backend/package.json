@@ -9,7 +9,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun --env-file=../../.env run src/db/migrate.ts",
     "seed": "bun --env-file=../../.env run src/db/seed.ts",
-    "analyze:fixture": "bun --env-file=../../.env run scripts/analyze-fixture.ts"
+    "analyze:fixture": "bun --env-file=../../.env run scripts/analyze-fixture.ts",
+    "demo": "bun --env-file=../../.env run scripts/demo-event.ts",
+    "demo:chat": "bun --env-file=../../.env run scripts/demo-chat.ts"
   },
   "dependencies": {
     "common": "workspace:*",

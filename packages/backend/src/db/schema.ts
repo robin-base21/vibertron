@@ -48,6 +48,8 @@ export const events = sqliteTable('events', {
 	votingPhase: text('voting_phase', { enum: ['none', 'group', 'pitch', 'results'] })
 		.notNull()
 		.default('none'),
+	/** Last successful "Publish to site". */
+	publishedToSiteAt: integer('published_to_site_at', { mode: 'timestamp_ms' }),
 	createdAt: createdAt()
 });
 
@@ -77,6 +79,8 @@ export const participants = sqliteTable(
 			.notNull()
 			.references(() => users.id, { onDelete: 'cascade' }),
 		friendCode: text('friend_code').notNull(),
+		/** pending: joined after launch, waiting for a manager or admin. */
+		status: text('status', { enum: ['active', 'pending', 'rejected'] }).notNull().default('active'),
 		lastMessageAt: integer('last_message_at', { mode: 'timestamp_ms' }),
 		joinedAt: integer('joined_at', { mode: 'timestamp_ms' })
 			.notNull()
@@ -199,6 +203,12 @@ export const projects = sqliteTable(
 			.references(() => teams.id, { onDelete: 'cascade' }),
 		name: text('name').notNull(),
 		tagline: text('tagline'),
+		link: text('link'),
+		/** Presentation PDF in UPLOAD_DIR (not in `uploads`, which serves event images publicly). */
+		deckRef: text('deck_ref'),
+		deckSize: integer('deck_size'),
+		/** The author's choice for the public showcase site; null until they choose (= private). */
+		showcase: integer('showcase', { mode: 'boolean' }),
 		createdAt: createdAt(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 			.notNull()

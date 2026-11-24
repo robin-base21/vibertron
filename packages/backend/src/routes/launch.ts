@@ -8,7 +8,12 @@ import { HttpError, conflict, json, parseBody } from '../http';
 import { notifyEvent, notifyParticipants } from '../live/notify';
 
 function assignmentInput(app: App, event: Event) {
-	const participantIds = app.db.select({ id: participants.id }).from(participants).where(eq(participants.eventId, event.id)).all().map((r) => r.id);
+	const participantIds = app.db
+		.select({ id: participants.id })
+		.from(participants)
+		.where(and(eq(participants.eventId, event.id), eq(participants.status, 'active')))
+		.all()
+		.map((r) => r.id);
 	const pairs = app.db
 		.select({ from: pairings.fromParticipantId, to: pairings.toParticipantId })
 		.from(pairings)

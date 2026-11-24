@@ -13,6 +13,8 @@
 		highlightTeamId?: string | null;
 		/** Delay between pitch reveals. */
 		revealMs?: number;
+		/** Lists in two columns (TV: the panel spans the main view). */
+		wide?: boolean;
 		class?: string;
 	}
 
@@ -22,13 +24,23 @@
 		projects,
 		highlightTeamId = $bindable(null),
 		revealMs = 2600,
+		wide = false,
 		class: className = ''
 	}: Props = $props();
 
 	// Sized in em: the TV scales the font with the viewport, the /live page uses a fixed size.
 	// Mount this per phase ({#key phase}) so every phase change replays its reveal.
 
+	const list = $derived(
+		wide
+			? 'grid min-h-0 grid-cols-2 content-start gap-x-[1.5em] overflow-hidden'
+			: 'flex min-h-0 flex-col overflow-hidden'
+	);
 	const teamById = $derived(new Map(teams.map((t) => [t.id, t])));
+	/** Many pitches on the TV: smaller rows so they all fit above the plan. */
+	const compact = $derived(wide && voting.pitches.length > 4);
+	/** Lots of pitches: one line each (name, then author and team). */
+	const dense = $derived(wide && voting.pitches.length > 9);
 	const rows = $derived(groupRows(voting, teams, projects));
 	const pitches = $derived(voting.pitches);
 	const ranking = $derived(pitchRanking(voting, teams, projects));
@@ -68,6 +80,28 @@
 	});
 </script>
 
+{#snippet pitchRow(p: ProjectDTO, i: number)}
+	<span class={['font-mono leading-none opacity-60', compact ? 'text-[1.2em]' : 'text-[1.6em]']}
+		>{String(i + 1).padStart(2, '0')}</span
+	>
+	<div class={['flex min-w-0', dense ? 'items-baseline gap-[0.5em]' : 'flex-col']}>
+		<span
+			class={[
+				'truncate bp-label leading-tight font-bold',
+				dense ? 'max-w-[80%] shrink-0 text-[1.05em]' : compact ? 'text-[1.15em]' : 'text-[1.5em]'
+			]}>{p.name}</span
+		>
+		<span class="min-w-0 truncate text-[0.85em] opacity-70">
+			{p.authorName} ·
+			{#if teamById.get(p.teamId)}<TeamSwatch
+					position={teamById.get(p.teamId)!.position}
+					class="size-[0.75em] align-baseline"
+				/>{/if}
+			<span class="bp-label">{teamLabel(teamById.get(p.teamId))}</span>
+		</span>
+	</div>
+{/snippet}
+
 <section
 	class={['flex min-h-0 flex-col gap-[0.8em]', className]}
 	data-testid="voting-panel"
@@ -91,12 +125,14 @@
 		<p class="text-[0.9em] opacity-70">
 			Rank your teammates' projects on your phone. The top project of each team pitches.
 		</p>
-		<ul class={['flex min-h-0 flex-col overflow-hidden', rows.length > 8 && 'text-[0.8em]']}>
+		<ul class={[list, rows.length > (wide ? 16 : 8) && 'text-[0.8em]']}>
 			{#each rows as r (r.team.id)}
 				<li
 					class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-[0.8em] border-b border-bp-line/20 py-[0.45em]"
 				>
-					<span class={['flex min-w-0 items-center gap-[0.4em]', r.mode !== 'vote' && 'opacity-60']}>
+					<span
+						class={['flex min-w-0 items-center gap-[0.4em]', r.mode !== 'vote' && 'opacity-60']}
+					>
 						<TeamSwatch position={r.team.position} class="size-[0.8em]" />
 						<span class="truncate bp-label font-semibold">{teamLabel(r.team)}</span>
 					</span>
@@ -135,39 +171,56 @@
 				{revealing ? 'The pitches' : 'Pitch voting'}
 			</h2>
 		</header>
-		<ol class="flex min-h-0 flex-col gap-[0.3em] overflow-hidden">
+		<!-- Every pitch must stay visible on the TV: more columns and compact rows as the list grows. -->
+		<ol
+			class={[
+				wide ? 'grid content-start gap-x-[1.5em]' : 'flex min-h-0 flex-col overflow-hidden',
+				'gap-y-[0.3em]'
+			]}
+			style:grid-template-columns={wide
+				? `repeat(${pitches.length > 8 ? 3 : 2}, minmax(0, 1fr))`
+				: undefined}
+		>
 			{#each pitches.slice(0, shown) as p, i (p.id)}
 				<li
 					in:fly={{ x: 40, duration: 600 }}
 					class={[
-						'grid grid-cols-[2.2em_minmax(0,1fr)] items-baseline gap-x-[0.5em] border px-[0.5em] py-[0.4em] transition-colors duration-700',
+						'grid grid-cols-[2.2em_minmax(0,1fr)] items-baseline gap-x-[0.5em] border px-[0.5em] transition-colors duration-700',
+						compact ? 'py-[0.25em]' : 'py-[0.4em]',
 						revealing && i === shown - 1 ? 'border-bp-accent bg-bp-accent/15' : 'border-bp-line/25'
 					]}
 				>
-					<span class="font-mono text-[1.6em] leading-none opacity-60"
-						>{String(i + 1).padStart(2, '0')}</span
-					>
-					<div class="flex min-w-0 flex-col">
-						<span class="truncate bp-label text-[1.5em] leading-tight font-bold">{p.name}</span>
-						<span class="truncate text-[0.85em] opacity-70">
-							{p.authorName} ·
-							{#if teamById.get(p.teamId)}<TeamSwatch position={teamById.get(p.teamId)!.position} class="size-[0.75em] align-baseline" />{/if}
-							<span class="bp-label">{teamLabel(teamById.get(p.teamId))}</span>
-						</span>
-					</div>
+					{@render pitchRow(p, i)}
 				</li>
 			{/each}
+			<!-- Slots for pitches not revealed yet, so the layout (and the plan below) never jumps. -->
+			{#if wide}
+				{#each pitches.slice(shown) as p, i (p.id)}
+					<li
+						class={[
+							'invisible grid grid-cols-[2.2em_minmax(0,1fr)] border px-[0.5em]',
+							compact ? 'py-[0.25em]' : 'py-[0.4em]'
+						]}
+						aria-hidden="true"
+					>
+						{@render pitchRow(p, shown + i)}
+					</li>
+				{/each}
+			{/if}
 		</ol>
 		{#if pitches.length === 0}
 			<p class="py-[0.5em] bp-label opacity-50">No pitches</p>
 		{/if}
-		{#if !revealing}
+		{#if !revealing || wide}
 			<footer
-				in:fade
-				class="mt-auto flex flex-col gap-[0.3em] border-t border-bp-line/50 pt-[0.5em]"
+				class={[
+					'mt-auto flex flex-col gap-[0.3em] border-t border-bp-line/50 pt-[0.5em] transition-opacity duration-500',
+					revealing && 'opacity-0'
+				]}
 			>
-				<div class="flex items-baseline justify-between">
+				<div class="flex items-baseline justify-between gap-[1em]">
 					<span class="bp-label text-[0.8em] opacity-60">Ballots cast</span>
+					{#if wide}<p class="text-[0.85em] opacity-70">Rank all the pitches on your phone.</p>{/if}
 					<span class="font-mono text-[2.4em] leading-none tabular-nums" data-testid="ballots-cast">
 						{voting.pitch.cast}<span class="opacity-50">/{voting.pitch.eligible}</span>
 					</span>
@@ -180,9 +233,7 @@
 							: 0}%"
 					></div>
 				</div>
-				<p class="text-[0.85em] opacity-70">
-					Rank all the pitches on your phone.
-				</p>
+				{#if !wide}<p class="text-[0.85em] opacity-70">Rank all the pitches on your phone.</p>{/if}
 			</footer>
 		{/if}
 	{:else if voting.phase === 'results'}
@@ -204,7 +255,10 @@
 				</p>
 				<p class="text-[1.1em]">
 					{winner.project?.authorName ?? ''} ·
-					{#if winner.team}<TeamSwatch position={winner.team.position} class="size-[0.8em] align-baseline" />{/if}
+					{#if winner.team}<TeamSwatch
+							position={winner.team.position}
+							class="size-[0.8em] align-baseline"
+						/>{/if}
 					<span class="bp-label">{teamLabel(winner.team)}</span>
 				</p>
 				<p class="font-mono text-[0.85em] opacity-70">
@@ -212,7 +266,7 @@
 					{#if winnerByDraw(ranking)}· DECIDED BY DRAW{/if}
 				</p>
 			</div>
-			<ol class="flex min-h-0 flex-col overflow-hidden">
+			<ol class={list}>
 				{#each ranking.slice(1) as r, i (r.projectId)}
 					<li
 						in:fly={{ y: 16, duration: 450, delay: 500 + i * 220 }}
@@ -223,7 +277,10 @@
 							<span class="bp-label font-semibold">{r.project?.name ?? r.projectId}</span>
 							<span class="text-[0.8em] opacity-60">
 								· {r.project?.authorName ?? ''} ·
-								{#if r.team}<TeamSwatch position={r.team.position} class="size-[0.75em] align-baseline" />{/if}
+								{#if r.team}<TeamSwatch
+										position={r.team.position}
+										class="size-[0.75em] align-baseline"
+									/>{/if}
 								{teamLabel(r.team)}</span
 							>
 						</span>

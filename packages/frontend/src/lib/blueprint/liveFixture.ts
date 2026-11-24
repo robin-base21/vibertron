@@ -24,10 +24,12 @@ export function startFixture(
 ): () => void {
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let stopped = false;
-	import('./fixtures').then(({ fixtureSnapshot, fixtureTeams, fixtureVoting }) => {
+	import('./fixtures').then(({ fixtureProjects, fixtureSnapshot, fixtureTeams, fixtureVoting }) => {
 		if (stopped) return;
 		const phase = opts.voting ?? 'none';
 		const snap = fixtureSnapshot(status, Date.now(), phase, opts.draw);
+		// Copy: the snapshot's teams array is the shared fixtureTeams.
+		snap.teams = [...snap.teams];
 		for (let i = snap.teams.length; status !== 'open' && i < (opts.teams ?? 0); i++) {
 			snap.teams.push({
 				...fixtureTeams[i % fixtureTeams.length]!,
@@ -35,8 +37,23 @@ export function startFixture(
 				name: `Team ${i + 1}`,
 				codename: `Squad ${i + 1}`,
 				position: i,
-				members: []
+				// Two guests each (off the plan), so extra teams also name projects and pitch.
+				members: ['A', 'B'].map((x) => ({
+					participantId: `px${i}${x}`,
+					displayName: `Guest ${i + 1}${x}`,
+					stationId: `off-plan-${i}${x}`
+				}))
 			});
+		}
+		if ((opts.teams ?? 0) > fixtureTeams.length && status !== 'open') {
+			snap.projects = fixtureProjects(snap.teams);
+			snap.voting = fixtureVoting(
+				phase,
+				snap.teams,
+				snap.projects,
+				phase === 'pitch' ? 0 : 0.3,
+				opts.draw
+			);
 		}
 		const allProjects = snap.projects;
 		if (phase === 'none') snap.projects = allProjects.slice(0, Math.ceil(allProjects.length / 2));

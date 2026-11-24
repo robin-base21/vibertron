@@ -233,7 +233,8 @@ test('event lifecycle: invite → join → pair → launch → codename → mess
 		// Time's up waits for the manager: voting is offered, never started automatically.
 		await expect(mgr.getByRole('button', { name: 'Start voting…' })).toBeVisible();
 		for (const a of attendees) await expect(a.page.getByText('That’s a wrap')).toBeVisible();
-		await expect(tv.getByText(/Final codenames/)).toBeVisible();
+		await expect(tv.getByText("Time's up")).toBeVisible();
+		await expect(tv.getByText('Night Owls', { exact: true }).first()).toBeVisible();
 	});
 
 	await Promise.all([mgrContext, tvContext, viewerContext, ...attendees.map((a) => a.context)].map((c) => c.close()));

@@ -148,7 +148,7 @@ Each phase lists parallel **workstreams** (one subagent each) with the files the
 ### Phase 4: Launch and live ✅
 | WS | Owns | Deliverables |
 |---|---|---|
-| **4A backend** | `backend/src/routes/{launch,teams,messages}.ts`, `backend/src/live/**` | launch (capacity check, transactional assignment, `live` + `endsAt`), end event, codename set (once per team, editable by members until ended), messages (requires codename, rate limit 1 per 10 s, 280 chars, manager hide), WS broadcasts, public snapshot endpoint for viewers |
+| **4A backend** | `backend/src/routes/{launch,teams,messages}.ts`, `backend/src/live/**` | launch (capacity check, transactional assignment, `live` + `endsAt`), end event, codename set (once per team, editable by members until ended), messages (requires codename, rate limit 1 per 5 s, 150 chars, manager hide), WS broadcasts, public snapshot endpoint for viewers |
 | **4B TV + public** | `frontend/src/routes/e/[slug]/{tv,live}/**` | full-screen TV: huge mono countdown (server-offset corrected), blueprint with team codenames per segment, message ticker, ended state; viewer page (same data, responsive) |
 | **4C attendee + manager live** | `frontend/src/routes/e/[slug]/(attendee)/**`, `routes/manage/[event]/live/**` | launch dialog (team size, duration, capacity preview), attendee view (station highlighted on the blueprint, "Segment A · Station 03" directions, teammates), codename form → message composer, manager moderation panel |
 

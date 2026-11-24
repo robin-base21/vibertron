@@ -25,6 +25,8 @@ Events (manager owns; admin sees/edits all)
   DELETE /api/events/:id                                         -> { ok: true }
   GET    /api/events/:id/participants                            -> { participants: ParticipantDTO[] }
   DELETE /api/events/:id/participants/:pid                       -> { ok: true }
+  POST   /api/events/:id/participants/:pid/approve  ApproveBody -> { participant: ParticipantDTO; team: TeamDTO }  (pending; live/ended; before voting)
+  POST   /api/events/:id/participants/:pid/reject               -> { participant: ParticipantDTO }
 Invites (event manager)
   GET    /api/events/:id/invites                                 -> { invites: InviteDTO[] }
   POST   /api/events/:id/invites            CreateInviteBody     -> { invite: InviteDTO }
@@ -32,7 +34,7 @@ Invites (event manager)
   GET    /api/invites/:id/code                                   -> JoinCodeDTO   (rotating)
 Join (public)
   GET    /api/join/:token                                        -> { event: PublicEventDTO }
-  POST   /api/join/:token                   JoinBody             -> { user: UserDTO; participant: ParticipantDTO; event: PublicEventDTO }
+  POST   /api/join/:token                   JoinBody             -> { user: UserDTO; participant: ParticipantDTO; event: PublicEventDTO }  (open: active; live/ended before voting: pending)
 Attendee (participant of the event)
   GET    /api/e/:slug/me                                         -> AttendeeContextDTO
   POST   /api/e/:slug/pairings              PairBody             -> { pairing: PairingDTO }
@@ -41,6 +43,11 @@ Attendee (participant of the event)
   PATCH  /api/teams/:id                     CodenameBody         -> { team: TeamDTO }      (team member, event live)
   POST   /api/e/:slug/messages              MessageBody          -> { message: MessageDTO } (team has codename)
   PUT    /api/e/:slug/project               ProjectBody          -> { project: ProjectDTO }  (on a team; live/ended; votingPhase none)
+  PUT    /api/e/:slug/project/deck          multipart `file` (PDF) -> { project: ProjectDTO }  (own project; until the pitch round opens)
+  DELETE /api/e/:slug/project/deck                              -> { project: ProjectDTO }  (same window)
+  PUT    /api/e/:slug/project/showcase  ShowcaseBody         -> { project: ProjectDTO }  (own project; any time)
+  POST   /api/events/:id/publish                                 -> { event: EventDTO }  (results phase; SITE_PUBLISH_URL set; see publish.ts)
+  GET    /api/projects/:id/deck                                  -> application/pdf  (author or manager; everyone once voting starts)
   PUT    /api/e/:slug/ballot                BallotBody           -> { ok: true; voting: VotingStateDTO } (eligible voter; round = votingPhase)
 Blueprints (event manager)
   GET    /api/events/:id/blueprint                               -> { blueprint: Blueprint | null; version: number }
@@ -55,6 +62,7 @@ Launch / live (event manager)
   POST   /api/events/:id/end                                     -> { event: EventDTO }
   PATCH  /api/messages/:id                  ModerateBody         -> { message: MessageDTO }
 Voting (event manager; see common/src/voting.ts for the rules)
+  POST   /api/events/:id/teams/move         TeamMoveBody         -> { teams: TeamDTO[] }  (changed teams; event live/ended)
   POST   /api/events/:id/voting             VotingActionBody     -> { event: EventDTO; voting: VotingStateDTO }
 Public (anyone)
   GET    /api/e/:slug/live                                       -> LiveSnapshotDTO
@@ -102,6 +110,8 @@ export interface EventDTO extends PublicEventDTO {
 	managerId: string;
 	participantCount: number;
 	createdAt: number;
+	/** Last "Publish to site"; null if never. */
+	publishedToSiteAt: number | null;
 }
 
 export interface InviteDTO {
@@ -122,6 +132,10 @@ export interface JoinCodeDTO {
 	serverTime: number;
 }
 
+/** pending: joined after launch, waits for a manager or admin to let them in. */
+export const ParticipantStatus = z.enum(['active', 'pending', 'rejected']);
+export type ParticipantStatus = z.infer<typeof ParticipantStatus>;
+
 export interface ParticipantDTO {
 	id: string;
 	eventId: string;
@@ -130,6 +144,9 @@ export interface ParticipantDTO {
 	friendCode: string;
 	teamId: string | null;
 	joinedAt: number;
+	status: ParticipantStatus;
+	/** Participants linked by a pairing (either direction, accepted or not); used to suggest a team. */
+	friendIds: string[];
 }
 
 export interface PairingDTO {
@@ -180,6 +197,12 @@ export interface ProjectDTO {
 	authorName: string;
 	name: string;
 	tagline: string | null;
+	/** Submission (optional). Hidden from others (null) until voting starts; see submissionsVisible. */
+	link: string | null;
+	/** Size of the uploaded presentation PDF in bytes; null when there is none (or it is hidden). */
+	deckSize: number | null;
+	/** Author's choice for the public showcase site; null = not chosen yet (treated as private). */
+	showcase: boolean | null;
 }
 
 export interface VotingStateDTO {
@@ -304,8 +327,8 @@ export type PairBody = z.infer<typeof PairBody>;
 export const CodenameBody = z.object({ codename: z.string().trim().min(1).max(32) });
 export type CodenameBody = z.infer<typeof CodenameBody>;
 
-export const MESSAGE_MAX_LENGTH = 280;
-export const MESSAGE_RATE_LIMIT_MS = 10_000;
+export const MESSAGE_MAX_LENGTH = 150;
+export const MESSAGE_RATE_LIMIT_MS = 5_000;
 
 export const MessageBody = z.object({ body: z.string().trim().min(1).max(MESSAGE_MAX_LENGTH) });
 export type MessageBody = z.infer<typeof MessageBody>;
@@ -313,9 +336,20 @@ export type MessageBody = z.infer<typeof MessageBody>;
 export const ModerateBody = z.object({ hidden: z.boolean() });
 export type ModerateBody = z.infer<typeof ModerateBody>;
 
+export const ProjectLink = z
+	.string()
+	.trim()
+	.max(300)
+	.url()
+	.refine((u) => /^https?:\/\//i.test(u), 'Link must start with http:// or https://');
+
 export const ProjectBody = z.object({
 	name: z.string().trim().min(1).max(40),
-	tagline: z.string().trim().max(120).optional()
+	tagline: z.string().trim().max(120).optional(),
+	/** Omitted or empty: no link. */
+	link: z.union([ProjectLink, z.literal('')]).optional(),
+	/** Public showcase choice; omitted keeps the current one (also settable later via /project/showcase). */
+	showcase: z.boolean().optional()
 });
 export type ProjectBody = z.infer<typeof ProjectBody>;
 
@@ -325,6 +359,21 @@ export type BallotBody = z.infer<typeof BallotBody>;
 /** start: none -> group. close-group: group -> pitch (also automatic). close-pitch: pitch -> results. reset: any -> none. */
 export const VotingActionBody = z.object({ action: z.enum(['start', 'close-group', 'close-pitch', 'reset']) });
 export type VotingActionBody = z.infer<typeof VotingActionBody>;
+
+/** Manager correction after launch; see rearrange.ts. Member moves and swaps are closed once voting starts. */
+export const TeamMoveBody = z.discriminatedUnion('kind', [
+	z.object({ kind: z.literal('member'), participantId: z.string().min(1), teamId: z.string().min(1) }),
+	z.object({ kind: z.literal('swap'), participantId: z.string().min(1), withParticipantId: z.string().min(1) }),
+	z.object({ kind: z.literal('team'), teamId: z.string().min(1), segmentId: z.string().min(1) })
+]);
+export type TeamMoveBody = z.infer<typeof TeamMoveBody>;
+
+export const ShowcaseBody = z.object({ showcase: z.boolean() });
+export type ShowcaseBody = z.infer<typeof ShowcaseBody>;
+
+/** Let a late arrival in: into `teamId`, or a new team when omitted. */
+export const ApproveBody = z.object({ teamId: z.string().min(1).optional() });
+export type ApproveBody = z.infer<typeof ApproveBody>;
 
 export const SaveBlueprintBody = z.object({ blueprint: Blueprint, version: z.number().int().min(0) });
 export type SaveBlueprintBody = z.infer<typeof SaveBlueprintBody>;

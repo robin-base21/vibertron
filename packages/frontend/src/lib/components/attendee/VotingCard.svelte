@@ -1,6 +1,7 @@
 <script lang="ts">
 	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
 	import RankList from '$lib/components/RankList.svelte';
+	import SubmissionLinks from '$lib/components/SubmissionLinks.svelte';
 	import type { AttendeeState } from '$lib/stores/attendee.svelte';
 	import { errorMessage } from '$lib/stores/toast.svelte';
 	import { hashSeed, seededRandom, shuffle, type VoteRound } from 'common';
@@ -101,9 +102,12 @@
 							{#if round === 'pitch' && p && s.teamPosition(p.teamId) !== null}
 								<TeamSwatch position={s.teamPosition(p.teamId)!} class="size-2.5" />
 							{/if}
-							<span class="truncate">{p?.authorName}{round === 'pitch' && p ? ` · ${s.teamName(p.teamId)}` : ''}</span>
+							<span class="truncate"
+								>{p?.authorName}{round === 'pitch' && p ? ` · ${s.teamName(p.teamId)}` : ''}</span
+							>
 						</span>
 						{#if p?.tagline}<span class="truncate text-xs opacity-60">{p.tagline}</span>{/if}
+						{#if p}<SubmissionLinks project={p} class="mt-1" />{/if}
 					{/snippet}
 				</RankList>
 				{#if error}<p class="font-mono text-xs text-error" role="alert">{error}</p>{/if}
@@ -135,6 +139,7 @@
 							{/if}
 							{winner.project.authorName} · {s.teamName(winner.project.teamId)}
 						</span>
+						<SubmissionLinks project={winner.project} class="mt-1" />
 					{/if}
 					{#if winner.row.tieBrokenByDraw}
 						<span class="font-mono text-xs opacity-60">Tie decided by draw</span>

@@ -33,9 +33,19 @@ Sign in at http://localhost:3000/login with the admin account, then create a man
 2. **Edit blueprint**: draw segments, set station counts, and confirm them, or use **Import floorplan**. Import runs an OpenCV contour pass in the browser, then an OpenRouter vision model labels the areas. Text editing is available in the **Markup** tab. Running at the same venue again? **Reuse floorplan** copies the blueprint from one of your earlier events.
 3. Create an **invite**, then **Show QR on screen** on the venue display. The code rotates every 30 s, so only people in the room can join.
 4. Open the **TV** view on the big screen.
-5. **Launch**: pick a team size and duration. Teams are randomised, friends stay together, and everyone gets a workstation.
-6. Attendees name their own project on their phone during the build.
+5. **Launch**: pick a team size and duration. Teams are randomised, friends stay together, and everyone gets a workstation. Latecomers can still join with the invite until voting starts; they wait on their phone until a manager or admin lets them in from **Late arrivals** on the event page (into a suggested team, a friend's team, or a new one) or turns them away.
+6. Attendees name their own project on their phone during the build, optionally with a project link and a presentation PDF (up to 20 MB). Only the author and managers see these until voting starts; then everyone can open them while ranking. Name and link lock when voting starts; the PDF can be replaced until pitch voting opens. Need to fix the seating? **Rearrange teams** (managers and admins): drag a person onto another team or swap two people, or drag a whole team into another area on the list or on the plan. People stay put once voting starts; whole teams can still move.
 7. **Voting** (on the event page): start team voting. Each team ranks its members' projects, and the top project of each team pitches. When every team has voted, the TV reveals the pitches and pitch voting opens. Close it to reveal the winner on the TV.
+
+## Public site (`packages/site`)
+
+A separate SvelteKit app with its own SQLite database: event pages with signups (name, email, optional newsletter opt-in, waitlist past capacity), past events with results and a project showcase, and an admin area at `/admin` (password `SITE_ADMIN_PASSWORD`) to create events, see signups, mark them **paid** by hand, and export CSVs.
+
+Vibertron's only link to it is **Publish to site** (manager page, after the winner is revealed): it pushes the results, the projects whose authors chose "show on the public website" on their phone, and their slides. Contract in `common/src/publish.ts`; set the same `SITE_PUBLISH_SECRET` on both sides and `SITE_PUBLISH_URL` (the site's `/api/results`) on Vibertron. To land results on an event page you already made on the site, put the Vibertron event slug in its "Vibertron event slug" field; otherwise a new past-event page is created.
+
+- `bun run dev:site`: site on :3100 (runs on Bun for `bun:sqlite`)
+- `bun run check:site`: svelte-check for the site
+- Docker: the `site` service in `docker-compose.yml`; it is served at https://vibe.ourbusan.life (`SITE_ORIGIN`, the default; links in emails use it). For a local http test set `SITE_ORIGIN=http://localhost:3100` and `SITE_COOKIE_SECURE=false`.
 
 ## Commands
 

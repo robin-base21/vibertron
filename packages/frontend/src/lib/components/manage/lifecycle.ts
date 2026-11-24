@@ -17,7 +17,10 @@ export const STAGES: { id: Stage; label: string }[] = [
 ];
 
 /** A live event whose clock ran out counts as "time's up" even before the server sweep. */
-export function stageOf(event: Pick<EventDTO, 'status' | 'votingPhase' | 'endsAt'>, now: number): Stage {
+export function stageOf(
+	event: Pick<EventDTO, 'status' | 'votingPhase' | 'endsAt'>,
+	now: number
+): Stage {
 	if (event.votingPhase !== 'none') return event.votingPhase;
 	if (event.status === 'live' && event.endsAt !== null && event.endsAt <= now) return 'ended';
 	return event.status;
@@ -39,12 +42,17 @@ interface Context {
 }
 
 const listNames = (names: string[], max = 6) =>
-	names.length <= max ? names.join(', ') : `${names.slice(0, max).join(', ')} and ${names.length - max} more`;
+	names.length <= max
+		? names.join(', ')
+		: `${names.slice(0, max).join(', ')} and ${names.length - max} more`;
 
 const teamName = (t: TeamDTO) => t.codename ?? t.name;
 
 /** What a step will do, spelled out for the confirmation dialog. */
-export function confirmationFor(action: LifecycleAction, { event, now, teams, projects, voting }: Context): Confirmation {
+export function confirmationFor(
+	action: LifecycleAction,
+	{ event, now, teams, projects, voting }: Context
+): Confirmation {
 	const running = event.status === 'live' && event.endsAt !== null && event.endsAt > now;
 	switch (action) {
 		case 'end':
@@ -66,8 +74,11 @@ export function confirmationFor(action: LifecycleAction, { event, now, teams, pr
 				points: [
 					...(running ? [`Ends the build now (${hms(event.endsAt! - now)} left).`] : []),
 					`${projects.length} of ${members.length} attendees named a project.`,
-					...(missing.length ? [`No project yet: ${listNames(missing)}. They can still vote.`] : []),
-					'Project names lock.',
+					...(missing.length
+						? [`No project yet: ${listNames(missing)}. They can still vote.`]
+						: []),
+					`${projects.filter((p) => p.link || p.deckSize).length} of ${projects.length} projects submitted a link or slides. Everyone can see them from now on.`,
+					'Project names and links lock. Slides can still be updated until pitch voting opens.',
 					'The TV switches to team voting. The team round closes by itself once every team has voted.'
 				],
 				confirmLabel: running ? 'End build and start voting' : 'Start voting'
@@ -83,7 +94,9 @@ export function confirmationFor(action: LifecycleAction, { event, now, teams, pr
 			return {
 				title: 'Close the team round?',
 				points: [
-					...(open.length ? [`Still voting: ${listNames(open)}. They are tallied with the ballots they have.`] : []),
+					...(open.length
+						? [`Still voting: ${listNames(open)}. They are tallied with the ballots they have.`]
+						: []),
 					'The TV reveals the pitches and pitch voting opens.'
 				],
 				confirmLabel: 'Close team round'
@@ -101,7 +114,10 @@ export function confirmationFor(action: LifecycleAction, { event, now, teams, pr
 		case 'reset':
 			return {
 				title: 'Reset voting?',
-				points: ['All ballots and results are deleted.', 'Projects unlock for editing and the TV leaves voting.'],
+				points: [
+					'All ballots and results are deleted.',
+					'Projects unlock for editing and the TV leaves voting.'
+				],
 				confirmLabel: 'Reset voting',
 				danger: true
 			};

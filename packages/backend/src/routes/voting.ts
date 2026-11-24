@@ -1,22 +1,30 @@
 import {
 	BallotBody,
+	DECK_MAX_BYTES,
 	ProjectBody,
+	ShowcaseBody,
 	VotingActionBody,
+	deckOpen,
 	groupEligibleVoters,
 	hashSeed,
 	pitchEligibleVoters,
+	submissionsVisible,
 	tally,
 	validateRanking,
 	type TallyRow,
 	type VotingPhase
 } from 'common';
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import { and, eq, ne, sql } from 'drizzle-orm';
+import type { BunRequest } from 'bun';
 import type { App, Routes } from '../app';
-import { requireEventManager, type Event } from '../auth/guards';
-import { ballots, events, projects, teamMembers, votingResults } from '../db/schema';
+import { canManage, requireEventManager, type Event } from '../auth/guards';
+import { getSessionUser } from '../auth/session';
+import { ballots, events, participants, projects, teamMembers, votingResults } from '../db/schema';
 import { eventDTO, pitchProjects, projectDTO, projectDTOs, teamRosters, votingState, type GroupResult } from '../dto';
-import { HttpError, conflict, forbidden, json, parseBody } from '../http';
-import { notifyEvent } from '../live/notify';
+import { HttpError, badRequest, conflict, forbidden, json, notFound, parseBody } from '../http';
+import { notifyEvent, notifyProject, notifySubmissions } from '../live/notify';
 import { requireParticipant } from './attendee';
 
 // Phase 6: one project per participant, a team round and a pitch round (rules in common/src/voting.ts).
@@ -105,6 +113,21 @@ function maybeAutoCloseGroup(app: App, event: Event): Event | null {
 export function votingRoutes(app: App): Routes {
 	const { db } = app;
 
+	const deckPath = (ref: string) => join(app.env.uploadDir, ref);
+	const removeDeck = async (ref: string | null) => {
+		if (ref) await unlink(deckPath(ref)).catch(() => {});
+	};
+
+	/** The caller's own project while its PDF can still change (until the pitch round opens). */
+	function requireDeckWindow(req: BunRequest) {
+		const { event, participant } = requireParticipant(app, req, req.params.slug!);
+		if (event.status !== 'live' && event.status !== 'ended') throw conflict('Projects can be submitted once the event is live');
+		if (!deckOpen(event.votingPhase)) throw conflict('Presentations are locked once pitch voting opens');
+		const project = db.select().from(projects).where(eq(projects.participantId, participant.id)).get();
+		if (!project) throw conflict('Name your project first');
+		return { event, project };
+	}
+
 	const teamOf = (participantId: string) =>
 		db.select({ teamId: teamMembers.teamId }).from(teamMembers).where(eq(teamMembers.participantId, participantId)).get()?.teamId ?? null;
 
@@ -124,16 +147,90 @@ export function votingRoutes(app: App): Routes {
 					.get();
 				if (clash) throw conflict('Another project already uses that name');
 				const tagline = body.tagline ? body.tagline : null;
+				const link = body.link ? body.link : null;
 				const now = new Date();
 				const row = db
 					.insert(projects)
-					.values({ id: crypto.randomUUID(), eventId: event.id, participantId: participant.id, teamId, name: body.name, tagline, updatedAt: now })
-					.onConflictDoUpdate({ target: projects.participantId, set: { name: body.name, tagline, teamId, updatedAt: now } })
+					.values({ id: crypto.randomUUID(), eventId: event.id, participantId: participant.id, teamId, name: body.name, tagline, link, showcase: body.showcase ?? null, updatedAt: now })
+					.onConflictDoUpdate({
+						target: projects.participantId,
+						set: { name: body.name, tagline, link, teamId, updatedAt: now, ...(body.showcase === undefined ? {} : { showcase: body.showcase }) }
+					})
 					.returning({ id: projects.id })
 					.get();
 				const project = projectDTO(db, row.id)!;
-				app.live.toEvent(event.id, { type: 'project.updated', project });
+				notifyProject(app, event, project);
 				return json({ project });
+			}
+		},
+		'/api/e/:slug/project/showcase': {
+			PUT: async (req) => {
+				const { event, participant } = requireParticipant(app, req, req.params.slug!);
+				const { showcase } = await parseBody(req, ShowcaseBody);
+				// Changeable any time: a new "Publish to site" picks up the latest choices.
+				const row = db.update(projects).set({ showcase }).where(eq(projects.participantId, participant.id)).returning({ id: projects.id }).get();
+				if (!row) throw conflict('Name your project first');
+				const project = projectDTO(db, row.id)!;
+				notifyProject(app, event, project);
+				return json({ project });
+			}
+		},
+		'/api/e/:slug/project/deck': {
+			PUT: async (req) => {
+				const { event, project } = requireDeckWindow(req);
+				const length = Number(req.headers.get('content-length') ?? 0);
+				if (length > DECK_MAX_BYTES + 64 * 1024) throw new HttpError(413, 'too_large', 'The PDF must be at most 20 MB');
+				const form = await req.formData().catch(() => null);
+				if (!form) throw badRequest('Expected multipart/form-data');
+				const file = form.get('file');
+				if (!(file instanceof Blob)) throw badRequest('Missing "file" field');
+				if (file.size > DECK_MAX_BYTES) throw new HttpError(413, 'too_large', 'The PDF must be at most 20 MB');
+				const bytes = new Uint8Array(await file.arrayBuffer());
+				// Trust the bytes, not the file name or the browser's type.
+				if (new TextDecoder().decode(bytes.subarray(0, 5)) !== '%PDF-') {
+					throw new HttpError(415, 'unsupported_media_type', 'Only PDF files can be uploaded');
+				}
+				const ref = `deck-${Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString('hex')}.pdf`;
+				await Bun.write(deckPath(ref), bytes);
+				db.update(projects).set({ deckRef: ref, deckSize: bytes.length, updatedAt: new Date() }).where(eq(projects.id, project.id)).run();
+				await removeDeck(project.deckRef);
+				const dto = projectDTO(db, project.id)!;
+				notifyProject(app, event, dto);
+				return json({ project: dto });
+			},
+			DELETE: async (req) => {
+				const { event, project } = requireDeckWindow(req);
+				db.update(projects).set({ deckRef: null, deckSize: null, updatedAt: new Date() }).where(eq(projects.id, project.id)).run();
+				await removeDeck(project.deckRef);
+				const dto = projectDTO(db, project.id)!;
+				notifyProject(app, event, dto);
+				return json({ project: dto });
+			}
+		},
+		'/api/projects/:id/deck': {
+			GET: async (req) => {
+				const project = db.select().from(projects).where(eq(projects.id, req.params.id!)).get();
+				if (!project?.deckRef) throw notFound('No presentation');
+				const event = db.select().from(events).where(eq(events.id, project.eventId)).get()!;
+				if (!submissionsVisible(event.votingPhase)) {
+					// Before voting: only the author and the event's managers.
+					const user = getSessionUser(db, req);
+					const author = db.select({ userId: participants.userId }).from(participants).where(eq(participants.id, project.participantId)).get();
+					if (!user || (user.id !== author?.userId && !canManage(user, event))) throw notFound('No presentation');
+				}
+				const file = Bun.file(deckPath(project.deckRef));
+				if (!(await file.exists())) throw notFound('No presentation');
+				const filename = `${project.name.replace(/[^\w .-]+/g, '').trim() || 'presentation'}.pdf`;
+				return new Response(file, {
+					headers: {
+						'Content-Type': 'application/pdf',
+						'Content-Disposition': `inline; filename="${filename}"`,
+						'Cache-Control': 'private, no-cache',
+						'X-Content-Type-Options': 'nosniff',
+						// PDFs can carry scripts; never let one run with the app's origin.
+						'Content-Security-Policy': 'sandbox'
+					}
+				});
 			}
 		},
 		'/api/e/:slug/ballot': {
@@ -237,6 +334,7 @@ export function votingRoutes(app: App): Routes {
 				}
 
 				notifyVoting(app, updated, true);
+				if (action === 'start' || action === 'reset') notifySubmissions(app, updated);
 				return json({ event: eventDTO(db, updated), voting: votingState(db, updated) });
 			}
 		}

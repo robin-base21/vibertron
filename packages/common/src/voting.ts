@@ -93,3 +93,17 @@ export function tally(candidateIds: string[], ballots: string[][], seed: number)
 		!!a && !!b && a.points === b.points && a.firsts === b.firsts;
 	return rows.map((r, i) => ({ ...r, rank: i + 1, tieBrokenByDraw: tied(r, rows[i - 1]) || tied(r, rows[i + 1]) }));
 }
+
+// ---------- Submissions: an optional link and presentation PDF per project ----------
+
+export const DECK_MAX_BYTES = 20 * 1024 * 1024;
+
+/** Others see links and decks once voting starts; before that only the author and managers. */
+export function submissionsVisible(phase: VotingPhase): boolean {
+	return phase !== 'none';
+}
+
+/** The link locks with the project name when voting starts; the PDF stays open until the pitch round. */
+export function deckOpen(phase: VotingPhase): boolean {
+	return phase === 'none' || phase === 'group';
+}

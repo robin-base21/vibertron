@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { emptyBlueprint, type Blueprint, type LiveSnapshotDTO } from 'common';
+import { MESSAGE_MAX_LENGTH, emptyBlueprint, type Blueprint, type LiveSnapshotDTO } from 'common';
 import { eq } from 'drizzle-orm';
 import { events } from '../src/db/schema';
 import { endExpiredEvents } from '../src/routes/launch';
@@ -126,7 +126,7 @@ test('full flow: seed → login → manager → event → join → pair → blue
 	expect(limited.body.details.retryAfterMs).toBeGreaterThan(0);
 	// teammate has their own limit
 	expect((await cy.c.post(`/api/e/${event.slug}/messages`, { body: 'me too' })).status).toBe(201);
-	expect((await ada.c.post(`/api/e/${event.slug}/messages`, { body: 'x'.repeat(281) })).status).toBe(400);
+	expect((await ada.c.post(`/api/e/${event.slug}/messages`, { body: 'x'.repeat(MESSAGE_MAX_LENGTH + 1) })).status).toBe(400);
 	await Bun.sleep(550);
 	expect((await ada.c.post(`/api/e/${event.slug}/messages`, { body: 'after the wait' })).status).toBe(201);
 

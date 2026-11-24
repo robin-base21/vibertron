@@ -6,7 +6,7 @@ import type { User } from '../auth/session';
 import { events, pairings, participants, teamMembers } from '../db/schema';
 import { ballotsFor, loadBlueprint, pairingDTO, pairingsForParticipant, participantDTO, projectForParticipant, publicEventDTO, teamDTO } from '../dto';
 import { badRequest, conflict, forbidden, json, notFound, parseBody } from '../http';
-import { notifyPairing } from '../live/notify';
+import { notifyPairing, notifyParticipants } from '../live/notify';
 
 export const DEFAULT_GROUP_LIMIT = 4;
 
@@ -27,6 +27,7 @@ export function requireParticipant(app: App, req: Request, slug: string): { user
 		.where(and(eq(participants.eventId, event.id), eq(participants.userId, user.id)))
 		.get();
 	if (!participant) throw forbidden('Not a participant of this event');
+	if (participant.status === 'rejected') throw forbidden('The host did not let you into this event');
 	return { user, event, participant };
 }
 
@@ -95,7 +96,9 @@ export function attendeeRoutes(app: App): Routes {
 			POST: async (req) => {
 				const { event, participant } = requireParticipant(app, req, req.params.slug!);
 				const body = await parseBody(req, PairBody);
-				assertPrelaunch(event);
+				// A late arrival may still name a friend: it only tells the manager which team to suggest.
+				const lateHint = participant.status === 'pending';
+				if (!lateHint) assertPrelaunch(event);
 				const target = db
 					.select()
 					.from(participants)
@@ -114,11 +117,13 @@ export function attendeeRoutes(app: App): Routes {
 					)
 					.get();
 				if (existing) throw conflict('A pairing between you already exists', { pairingId: existing.id });
-				assertGroupFits(event, participant.id, target.id);
+				if (!lateHint) assertGroupFits(event, participant.id, target.id);
 				const id = crypto.randomUUID();
 				db.insert(pairings).values({ id, eventId: event.id, fromParticipantId: participant.id, toParticipantId: target.id }).run();
 				const dto = pairingDTO(db, id)!;
 				notifyPairing(app, dto);
+				// Managers see who a waiting late arrival came with (it drives the suggested team).
+				if (lateHint) notifyParticipants(app, event.id);
 				return json({ pairing: dto }, { status: 201 });
 			}
 		},

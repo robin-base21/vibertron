@@ -1,3 +1,5 @@
+import { MESSAGE_RATE_LIMIT_MS } from 'common';
+
 export interface Env {
 	port: number;
 	databasePath: string;
@@ -10,6 +12,9 @@ export interface Env {
 	/** Secure flag on the session cookie. */
 	secureCookies: boolean;
 	messageRateLimitMs: number;
+	/** Public site's results endpoint and shared secret; publishing is off while either is empty. */
+	sitePublishUrl: string;
+	sitePublishSecret: string;
 }
 
 export function loadEnv(source: Record<string, string | undefined> = process.env): Env {
@@ -23,7 +28,9 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
 		adminEmail: source.ADMIN_EMAIL ?? '',
 		adminPassword: source.ADMIN_PASSWORD ?? '',
 		secureCookies: source.COOKIE_SECURE === 'true',
-		messageRateLimitMs: source.MESSAGE_RATE_LIMIT_MS ? Number(source.MESSAGE_RATE_LIMIT_MS) : 10_000
+		messageRateLimitMs: source.MESSAGE_RATE_LIMIT_MS ? Number(source.MESSAGE_RATE_LIMIT_MS) : MESSAGE_RATE_LIMIT_MS,
+		sitePublishUrl: source.SITE_PUBLISH_URL ?? '',
+		sitePublishSecret: source.SITE_PUBLISH_SECRET ?? ''
 	};
 }
 

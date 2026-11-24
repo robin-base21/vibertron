@@ -1,6 +1,8 @@
 <script lang="ts">
 	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
 	import type { EventDTO, ProjectDTO, TallyRow, TeamDTO, VotingStateDTO } from 'common';
+	import SubmissionLinks from '$lib/components/SubmissionLinks.svelte';
+	import PublishToSite from './PublishToSite.svelte';
 	import { Check } from '@lucide/svelte';
 	import type { LifecycleAction } from './lifecycle';
 
@@ -52,6 +54,7 @@
 					<span class="truncate bp-label text-base">{projectName(r.projectId)}</span>
 					{@render byline(r.projectId)}
 				</span>
+				{#if byId.get(r.projectId)}<SubmissionLinks project={byId.get(r.projectId)!} />{/if}
 				{#if r.tieBrokenByDraw}<span class="bp-label text-xs opacity-60">draw</span>{/if}
 				<span class="font-mono text-xs opacity-70">{r.firsts}×1st</span>
 				<span class="w-16 text-right font-mono tabular-nums">{r.points} pts</span>
@@ -76,8 +79,10 @@
 		</h2>
 		<div class="flex gap-2">
 			{#if phase !== 'none'}
-				<button class="btn btn-ghost bp-label btn-sm" disabled={busy} onclick={() => onaction('reset')}
-					>Reset</button
+				<button
+					class="btn btn-ghost bp-label btn-sm"
+					disabled={busy}
+					onclick={() => onaction('reset')}>Reset</button
 				>
 			{/if}
 		</div>
@@ -85,9 +90,10 @@
 
 	{#if phase === 'none'}
 		<p class="font-mono text-xs opacity-60">
-			{projects.length} of {memberCount} members have named a project.
-			{#if projects.length === 0}Voting can start once at least one project exists.{:else}Start voting from the
-				header when the build is done.{/if}
+			{projects.length} of {memberCount} members have named a project,
+			{projects.filter((p) => p.link || p.deckSize).length} with a link or slides.
+			{#if projects.length === 0}Voting can start once at least one project exists.{:else}Start
+				voting from the header when the build is done.{/if}
 		</p>
 		<div class="grid gap-px border border-bp-line/40 bg-bp-line/40 sm:grid-cols-2">
 			{#each sortedTeams as t (t.id)}
@@ -98,10 +104,13 @@
 					<ul class="flex flex-col text-sm">
 						{#each t.members as m (m.participantId)}
 							{@const p = byParticipant.get(m.participantId)}
-							<li class="flex justify-between gap-2">
+							<li class="flex flex-wrap items-center justify-between gap-x-2">
 								<span class="truncate">{m.displayName}</span>
 								{#if p}
-									<span class="truncate bp-label">{p.name}</span>
+									<span class="flex min-w-0 items-center gap-2">
+										<span class="truncate bp-label">{p.name}</span>
+										<SubmissionLinks project={p} />
+									</span>
 								{:else}
 									<span class="font-mono text-xs opacity-40">no project yet</span>
 								{/if}
@@ -147,10 +156,13 @@
 						<span class="truncate bp-label text-base">{p.name}</span>
 						{@render byline(p.id)}
 					</span>
+					<!-- Open the pitching project's slides on the venue screen. -->
+					<SubmissionLinks project={byParticipant.get(p.participantId) ?? p} />
 				</li>
 			{/each}
 		</ol>
 	{:else if phase === 'results' && voting?.results}
+		<PublishToSite {event} {projects} />
 		<h3 class="bp-label text-sm opacity-70">Final ranking</h3>
 		{@render ranking(voting.results.pitch)}
 		<details class="border border-bp-line/30">

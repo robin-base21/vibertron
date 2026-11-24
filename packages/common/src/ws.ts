@@ -39,7 +39,9 @@ export type ServerEvent =
 	| { type: 'message.manage'; message: MessageDTO }
 	// personal
 	| { type: 'pairing.updated'; pairing: PairingDTO; removed?: boolean }
-	| { type: 'assignment'; eventId: string; team: TeamDTO; stationId: string };
+	| { type: 'assignment'; eventId: string; team: TeamDTO; stationId: string }
+	/** A late arrival was let in (active) or turned away (rejected). */
+	| { type: 'participant.updated'; participant: ParticipantDTO };
 
 export const topics = {
 	event: (eventId: string) => `event:${eventId}`,

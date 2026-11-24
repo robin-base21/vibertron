@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { events as eventsApi, invites as invitesApi, launch, voting as votingApi } from '$lib/api';
+	import {
+		events as eventsApi,
+		invites as invitesApi,
+		launch,
+		voting as votingApi
+	} from '$lib/api';
 	import Countdown from '$lib/components/Countdown.svelte';
 	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
 	import ConfirmDialog from '$lib/components/manage/ConfirmDialog.svelte';
@@ -13,6 +18,7 @@
 	} from '$lib/components/manage/lifecycle';
 	import { clock } from '$lib/stores/clock.svelte';
 	import LaunchDialog from '$lib/components/manage/LaunchDialog.svelte';
+	import LateArrivals from '$lib/components/manage/LateArrivals.svelte';
 	import Moderation from '$lib/components/manage/Moderation.svelte';
 	import VotingPanel from '$lib/components/manage/VotingPanel.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -20,6 +26,7 @@
 	import { handleError, toasts } from '$lib/stores/toast.svelte';
 	import { wsStore } from '$lib/stores/websocket.svelte';
 	import type {
+		Blueprint,
 		EventDTO,
 		MessageDTO,
 		ProjectDTO,
@@ -38,6 +45,7 @@
 
 	let messages = $state<MessageDTO[]>([]);
 	let teams = $state<TeamDTO[]>([]);
+	let blueprint = $state<Blueprint | null>(null);
 	let projects = $state<ProjectDTO[]>([]);
 	let voting = $state<VotingStateDTO | null>(null);
 	const teamById = $derived(new Map(teams.map((t) => [t.id, t])));
@@ -79,6 +87,10 @@
 				voting = e.snapshot.voting ?? null;
 				messages = e.snapshot.messages;
 				teams = e.snapshot.teams;
+				blueprint = e.snapshot.blueprint;
+			}),
+			wsStore.on('blueprint.updated', (e) => {
+				if (e.eventId === id) blueprint = e.blueprint;
 			}),
 			wsStore.on('launched', (e) => {
 				if (e.snapshot.event.id !== id) return;
@@ -86,7 +98,11 @@
 				teams = e.snapshot.teams;
 			}),
 			wsStore.on('team.updated', (e) => {
-				if (e.team.eventId === id) teams = teams.map((t) => (t.id === e.team.id ? e.team : t));
+				if (e.team.eventId !== id) return;
+				// A late arrival let in on their own brings a new team.
+				teams = teams.some((t) => t.id === e.team.id)
+					? teams.map((t) => (t.id === e.team.id ? e.team : t))
+					: [...teams, e.team];
 			}),
 			// Managers get every message (incl. hidden) on the manage topic; public copies dedupe.
 			wsStore.on('project.updated', (e) => {
@@ -224,7 +240,10 @@
 			<p class="font-mono text-xs opacity-60">
 				/{event.slug} · ID {event.id} · <span class="tabular-nums">{event.participantCount}</span> participants
 			</p>
-			<ol class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 bp-label text-xs" aria-label="Event stage">
+			<ol
+				class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 bp-label text-xs"
+				aria-label="Event stage"
+			>
 				{#each STAGES as s, i (s.id)}
 					{#if i > 0}<li class="opacity-30" aria-hidden="true">›</li>{/if}
 					<li
@@ -280,19 +299,34 @@
 				<button
 					class="btn bp-label btn-primary btn-sm"
 					disabled={busy || projects.length === 0}
-					title={projects.length === 0 ? 'Voting can start once at least one project is named' : undefined}
+					title={projects.length === 0
+						? 'Voting can start once at least one project is named'
+						: undefined}
 					onclick={() => requestAction('start')}
 				>
 					Start voting…
 				</button>
 			{:else if stage === 'group'}
-				<button class="btn bp-label btn-primary btn-sm" disabled={busy} onclick={() => requestAction('close-group')}>
+				<button
+					class="btn bp-label btn-primary btn-sm"
+					disabled={busy}
+					onclick={() => requestAction('close-group')}
+				>
 					Close team round…
 				</button>
 			{:else if stage === 'pitch'}
-				<button class="btn bp-label btn-primary btn-sm" disabled={busy} onclick={() => requestAction('close-pitch')}>
+				<button
+					class="btn bp-label btn-primary btn-sm"
+					disabled={busy}
+					onclick={() => requestAction('close-pitch')}
+				>
 					Reveal winner…
 				</button>
+			{/if}
+			{#if event.status === 'live' || event.status === 'ended'}
+				<a class="btn btn-outline bp-label btn-sm" href="/manage/{event.id}/teams"
+					>Rearrange teams</a
+				>
 			{/if}
 			<a class="btn btn-outline bp-label btn-sm" href="/manage/{event.id}/blueprint"
 				>Edit blueprint</a
@@ -340,17 +374,14 @@
 		</section>
 	{/if}
 
+	{#if event.status === 'live' || event.status === 'ended'}
+		<LateArrivals {event} {participants} {teams} {blueprint} />
+	{/if}
+
 	<div class="grid gap-8 lg:grid-cols-[1fr_24rem]">
 		<div class="flex flex-col gap-8">
 			{#if event.status === 'live' || event.status === 'ended'}
-				<VotingPanel
-					{event}
-					{teams}
-					{projects}
-					{voting}
-					{busy}
-					onaction={requestAction}
-				/>
+				<VotingPanel {event} {teams} {projects} {voting} {busy} onaction={requestAction} />
 				<Moderation {messages} onupdate={upsertMessage} />
 			{/if}
 			<section class="flex flex-col gap-3">
@@ -392,7 +423,13 @@
 													)}
 												</span>
 											{:else}
-												{p.teamId ? '…' : '—'}
+												{p.teamId
+													? '…'
+													: p.status === 'pending'
+														? 'Waiting to be let in'
+														: p.status === 'rejected'
+															? 'Turned away'
+															: '—'}
 											{/if}
 										</td>
 										<td class="text-right font-mono text-xs opacity-70">

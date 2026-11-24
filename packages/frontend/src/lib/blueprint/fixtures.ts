@@ -202,7 +202,14 @@ export function fixtureProjects(teams: TeamDTO[] = fixtureTeams): ProjectDTO[] {
 				participantId: m.participantId,
 				authorName: m.displayName,
 				name: name!,
-				tagline: tagline ?? null
+				tagline: tagline ?? null,
+				// Some submissions, so previews show the link and slides buttons.
+				link:
+					out.length % 2 === 0
+						? `https://github.com/example/${name!.toLowerCase().replace(/\W+/g, '-')}`
+						: null,
+				deckSize: out.length % 3 === 0 ? 2_400_000 : null,
+				showcase: out.length % 4 === 0 ? null : out.length % 4 !== 3
 			});
 		});
 	}
@@ -249,7 +256,12 @@ export function fixtureVoting(
 		);
 		if (own.length === 1) pitches.push(own[0]!);
 		else if (own.length > 1) {
-			const ballots = voters.map((v) => fakeBallot(own.map((p) => p.id), v));
+			const ballots = voters.map((v) =>
+				fakeBallot(
+					own.map((p) => p.id),
+					v
+				)
+			);
 			groupResults[t.id] = tally(
 				own.map((p) => p.id),
 				ballots,
@@ -269,7 +281,12 @@ export function fixtureVoting(
 	);
 	const pitchTally = tally(
 		pitches.map((p) => p.id),
-		pitchVoters.map((v) => fakeBallot(pitches.map((p) => p.id), v)),
+		pitchVoters.map((v) =>
+			fakeBallot(
+				pitches.map((p) => p.id),
+				v
+			)
+		),
 		hashSeed('fixture', 'pitch')
 	);
 	if (draw && pitchTally.length > 1) {
@@ -326,7 +343,13 @@ export function fixtureSnapshot(
 		messages: live ? fixtureMessages(now) : [],
 		participantCount: 18,
 		projects,
-		voting: fixtureVoting(phase, live ? fixtureTeams : [], projects, phase === 'pitch' ? 0 : 0.3, draw),
+		voting: fixtureVoting(
+			phase,
+			live ? fixtureTeams : [],
+			projects,
+			phase === 'pitch' ? 0 : 0.3,
+			draw
+		),
 		serverTime: now
 	};
 }

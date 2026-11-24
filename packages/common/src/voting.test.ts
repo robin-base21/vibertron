@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
-import { groupEligibleVoters, hashSeed, pitchEligibleVoters, tally, validateRanking, type VoteProject } from './voting';
+import { deckOpen, groupEligibleVoters, hashSeed, pitchEligibleVoters, submissionsVisible, tally, validateRanking, type VoteProject, type VotingPhase } from './voting';
+import { ProjectBody } from './api';
 
 const proj = (id: string, participantId: string, teamId = 't1'): VoteProject => ({ id, participantId, teamId });
 
@@ -52,4 +53,20 @@ test('hashSeed is stable and spreads', () => {
 	expect(hashSeed(1, 'team')).toBe(hashSeed(1, 'team'));
 	expect(hashSeed(1, 'team')).not.toBe(hashSeed(2, 'team'));
 	expect(hashSeed(null, 'x')).toBe(hashSeed(undefined, 'x'));
+});
+
+test('submissions: visible from the team round on, PDF open until the pitch round', () => {
+	expect(['none', 'group', 'pitch', 'results'].map((p) => submissionsVisible(p as VotingPhase))).toEqual([false, true, true, true]);
+	expect(['none', 'group', 'pitch', 'results'].map((p) => deckOpen(p as VotingPhase))).toEqual([true, true, false, false]);
+});
+
+test('project links: http(s) only, empty clears', () => {
+	const ok = (link: string) => ProjectBody.safeParse({ name: 'X', link }).success;
+	expect(ok('https://github.com/me/thing')).toBe(true);
+	expect(ok('http://localhost:5173')).toBe(true);
+	expect(ok('')).toBe(true);
+	expect(ok('javascript:alert(1)')).toBe(false);
+	expect(ok('ftp://files.example.com')).toBe(false);
+	expect(ok('not a url')).toBe(false);
+	expect(ok(`https://example.com/${'a'.repeat(300)}`)).toBe(false);
 });

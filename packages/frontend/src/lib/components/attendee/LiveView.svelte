@@ -7,6 +7,7 @@
 	import type { AttendeeState } from '$lib/stores/attendee.svelte';
 	import { clock } from '$lib/stores/clock.svelte';
 	import { errorMessage, handleError } from '$lib/stores/toast.svelte';
+	import TeamSwatch from '$lib/components/TeamSwatch.svelte';
 	import { MESSAGE_MAX_LENGTH, MESSAGE_RATE_LIMIT_MS, teamColor } from 'common';
 
 	let { state: s }: { state: AttendeeState } = $props();
@@ -53,6 +54,10 @@
 		body.trim().length > 0 && remaining >= 0 && !posting && cooldownLeft === 0
 	);
 	const feed = $derived([...s.messages].reverse());
+	/** The latest few by default; the rest on request. */
+	const FEED_PREVIEW = 5;
+	let showAll = $state(false);
+	const shownFeed = $derived(showAll ? feed : feed.slice(0, FEED_PREVIEW));
 
 	async function post(e: SubmitEvent) {
 		e.preventDefault();
@@ -96,9 +101,14 @@
 
 	{#if team && color}
 		<!-- Team colour band: matches the team's stations on the TV and helps teammates find each other. -->
-		<div class="flex items-center gap-3 px-4 py-3 text-[#0a0a0a]" style:background-color={color.hex}>
+		<div
+			class="flex items-center gap-3 px-4 py-3 text-[#0a0a0a]"
+			style:background-color={color.hex}
+		>
 			<span class="bp-label text-2xl font-bold whitespace-nowrap">Team {color.name}</span>
-			<span class="ml-auto truncate bp-label text-lg font-semibold">{team.codename ?? team.name}</span>
+			<span class="ml-auto truncate bp-label text-lg font-semibold"
+				>{team.codename ?? team.name}</span
+			>
 			{#if color.striped}
 				<span
 					class="h-7 w-9 shrink-0"
@@ -129,6 +139,11 @@
 				{#if s.teammates.length > 0}
 					You’re with {s.teammates.map((m) => m.displayName).join(', ')}.
 				{/if}
+			</p>
+			<p class="font-mono text-xs opacity-60">
+				Friend arriving late? Give them your code <span class="text-sm tracking-widest opacity-100"
+					>{s.me.friendCode}</span
+				>.
 			</p>
 		</section>
 
@@ -240,9 +255,14 @@
 		<section class="flex flex-col gap-2">
 			<h2 class="bp-label text-lg">Messages</h2>
 			<ul class="flex flex-col divide-y divide-bp-line/20 border border-bp-line/40">
-				{#each feed as m (m.id)}
-					<li class="flex flex-col gap-0.5 px-3 py-2">
-						<div class="flex items-baseline gap-2">
+				{#each shownFeed as m (m.id)}
+					{@const position = s.teamPosition(m.teamId)}
+					<li
+						class="flex flex-col gap-0.5 border-l-4 border-l-transparent px-3 py-2"
+						style:border-left-color={position === null ? undefined : teamColor(position).hex}
+					>
+						<div class="flex items-center gap-2">
+							{#if position !== null}<TeamSwatch {position} class="size-2.5" />{/if}
 							<span class={['bp-label text-sm', m.teamId === team?.id && 'text-bp-accent']}>
 								{m.codename}
 							</span>
@@ -258,6 +278,14 @@
 					</li>
 				{/each}
 			</ul>
+			{#if feed.length > FEED_PREVIEW}
+				<button
+					class="btn self-center btn-ghost bp-label btn-sm"
+					onclick={() => (showAll = !showAll)}
+				>
+					{showAll ? 'Show fewer' : `Show all ${feed.length} messages`}
+				</button>
+			{/if}
 		</section>
 	{/if}
 </div>

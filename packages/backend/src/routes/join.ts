@@ -51,15 +51,20 @@ export function joinRoutes(app: App): Routes {
 				// Already joined: idempotent, regardless of the (possibly stale) code.
 				if (user) {
 					const existing = db
-						.select({ id: participants.id })
+						.select({ id: participants.id, status: participants.status })
 						.from(participants)
 						.where(and(eq(participants.eventId, event.id), eq(participants.userId, user.id)))
 						.get();
+					if (existing?.status === 'rejected') throw forbidden('The host did not let you into this event');
 					if (existing) return json({ user: userDTO(user), participant: participantDTO(db, existing.id), event: publicEventDTO(event) });
 				}
 
 				if (!verifyJoinCode(event.joinSecret, body.code)) throw forbidden('Wrong or expired code');
-				if (event.status !== 'open') throw conflict(event.status === 'draft' ? 'Event is not open for joining yet' : `Event is ${event.status}`);
+				// After launch, people can still join until voting starts, but wait for a manager to let them in.
+				const late = event.status === 'live' || event.status === 'ended';
+				if (event.status === 'draft') throw conflict('Event is not open for joining yet');
+				if (late && event.votingPhase !== 'none') throw conflict('Joining is closed: voting has started');
+				const status = late ? 'pending' : 'active';
 
 				const headers: Record<string, string> = {};
 				const participantId = db.transaction((tx) => {
@@ -68,7 +73,7 @@ export function joinRoutes(app: App): Routes {
 					}
 					return tx
 						.insert(participants)
-						.values({ id: crypto.randomUUID(), eventId: event.id, userId: user.id, friendCode: newFriendCode(db, event.id) })
+						.values({ id: crypto.randomUUID(), eventId: event.id, userId: user.id, friendCode: newFriendCode(db, event.id), status })
 						.returning({ id: participants.id })
 						.get().id;
 				});

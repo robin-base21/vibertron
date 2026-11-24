@@ -96,7 +96,10 @@ export class AttendeeState {
 	}
 
 	#team(teamId: string) {
-		return this.teams.find((x) => x.id === teamId) ?? (this.ctx.team?.id === teamId ? this.ctx.team : null);
+		return (
+			this.teams.find((x) => x.id === teamId) ??
+			(this.ctx.team?.id === teamId ? this.ctx.team : null)
+		);
 	}
 
 	teamName(teamId: string): string {
@@ -159,9 +162,16 @@ export class AttendeeState {
 				this.ctx.stationId = e.stationId;
 			}),
 			wsStore.on('team.updated', (e) => {
+				if (e.team.eventId !== eventId) return;
 				if (e.team.id === this.ctx.team?.id) this.ctx.team = e.team;
 				const i = this.teams.findIndex((t) => t.id === e.team.id);
+				// New teams appear when a late arrival is let in on their own.
 				if (i !== -1) this.teams[i] = e.team;
+				else this.teams.push(e.team);
+			}),
+			wsStore.on('participant.updated', (e) => {
+				// Personal: a late arrival was let in or turned away.
+				if (e.participant.id === this.me.id) this.ctx.participant = e.participant;
 			}),
 			wsStore.on('pairing.updated', (e) => {
 				// Personal topic: ignore pairings from the user's other events.
@@ -222,12 +232,26 @@ export class AttendeeState {
 		this.#addMessage(message);
 	}
 
-	async saveProject(name: string, tagline: string) {
+	async saveProject(name: string, tagline: string, link: string, showcase: boolean) {
 		const { project } = await attendee.saveProject(this.slug, {
 			name,
-			tagline: tagline.trim() || undefined
+			tagline: tagline.trim() || undefined,
+			link: link.trim(),
+			showcase
 		});
 		this.#upsertProject(project);
+	}
+
+	async setShowcase(showcase: boolean) {
+		this.#upsertProject((await attendee.setShowcase(this.slug, { showcase })).project);
+	}
+
+	async uploadDeck(file: File) {
+		this.#upsertProject((await attendee.uploadDeck(this.slug, file)).project);
+	}
+
+	async removeDeck() {
+		this.#upsertProject((await attendee.removeDeck(this.slug)).project);
 	}
 
 	async saveBallot(round: VoteRound, ranking: string[]) {

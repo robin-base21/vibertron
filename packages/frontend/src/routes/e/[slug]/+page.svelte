@@ -1,6 +1,7 @@
 <script lang="ts">
 	import LiveView from '$lib/components/attendee/LiveView.svelte';
 	import Lobby from '$lib/components/attendee/Lobby.svelte';
+	import Waiting from '$lib/components/attendee/Waiting.svelte';
 	import { AttendeeState } from '$lib/stores/attendee.svelte';
 	import { untrack } from 'svelte';
 
@@ -18,7 +19,9 @@
 <svelte:head><title>{s.ctx.event.name} · Vibertron</title></svelte:head>
 
 <main class="mx-auto flex max-w-lg flex-col gap-6 px-4 py-6">
-	{#if s.ctx.event.status === 'live' || s.ctx.event.status === 'ended'}
+	{#if s.me.status !== 'active'}
+		<Waiting state={s} />
+	{:else if s.ctx.event.status === 'live' || s.ctx.event.status === 'ended'}
 		<LiveView state={s} />
 	{:else}
 		<Lobby state={s} />

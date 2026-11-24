@@ -12,7 +12,8 @@ import {
 	type TallyRow,
 	type VotingStateDTO,
 	groupEligibleVoters,
-	pitchEligibleVoters
+	pitchEligibleVoters,
+	submissionsVisible
 } from 'common';
 import { and, asc, count, desc, eq, inArray, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
@@ -42,11 +43,12 @@ export function publicEventDTO(e: Event): PublicEventDTO {
 }
 
 export function participantCount(db: DB, eventId: string): number {
-	return db.select({ n: count() }).from(participants).where(eq(participants.eventId, eventId)).get()?.n ?? 0;
+	// Late arrivals count once they are let in.
+	return db.select({ n: count() }).from(participants).where(and(eq(participants.eventId, eventId), eq(participants.status, 'active'))).get()?.n ?? 0;
 }
 
 export function eventDTO(db: DB, e: Event): EventDTO {
-	return { ...publicEventDTO(e), managerId: e.managerId, participantCount: participantCount(db, e.id), createdAt: e.createdAt.getTime() };
+	return { ...publicEventDTO(e), managerId: e.managerId, participantCount: participantCount(db, e.id), createdAt: e.createdAt.getTime(), publishedToSiteAt: ms(e.publishedToSiteAt) };
 }
 
 function participantQuery(db: DB) {
@@ -58,7 +60,8 @@ function participantQuery(db: DB) {
 			displayName: users.displayName,
 			friendCode: participants.friendCode,
 			teamId: teamMembers.teamId,
-			joinedAt: participants.joinedAt
+			joinedAt: participants.joinedAt,
+			status: participants.status
 		})
 		.from(participants)
 		.innerJoin(users, eq(users.id, participants.userId))
@@ -66,15 +69,36 @@ function participantQuery(db: DB) {
 }
 
 type ParticipantRow = Awaited<ReturnType<ReturnType<typeof participantQuery>['all']>>[number];
-const toParticipantDTO = (r: ParticipantRow): ParticipantDTO => ({ ...r, teamId: r.teamId ?? null, joinedAt: r.joinedAt.getTime() });
+const toParticipantDTO = (r: ParticipantRow, friendIds: string[]): ParticipantDTO => ({
+	...r,
+	teamId: r.teamId ?? null,
+	joinedAt: r.joinedAt.getTime(),
+	friendIds
+});
+
+/** participant id -> everyone linked to them by a pairing (either direction, any state). */
+function friendMap(db: DB, eventId: string): Map<string, string[]> {
+	const map = new Map<string, string[]>();
+	const add = (a: string, b: string) => map.set(a, [...(map.get(a) ?? []), b]);
+	for (const p of db.select({ a: pairings.fromParticipantId, b: pairings.toParticipantId }).from(pairings).where(eq(pairings.eventId, eventId)).all()) {
+		add(p.a, p.b);
+		add(p.b, p.a);
+	}
+	return map;
+}
 
 export function participantDTOs(db: DB, eventId: string): ParticipantDTO[] {
-	return participantQuery(db).where(eq(participants.eventId, eventId)).orderBy(asc(participants.joinedAt)).all().map(toParticipantDTO);
+	const friends = friendMap(db, eventId);
+	return participantQuery(db)
+		.where(eq(participants.eventId, eventId))
+		.orderBy(asc(participants.joinedAt))
+		.all()
+		.map((r) => toParticipantDTO(r, friends.get(r.id) ?? []));
 }
 
 export function participantDTO(db: DB, participantId: string): ParticipantDTO | null {
 	const r = participantQuery(db).where(eq(participants.id, participantId)).get();
-	return r ? toParticipantDTO(r) : null;
+	return r ? toParticipantDTO(r, friendMap(db, r.eventId).get(r.id) ?? []) : null;
 }
 
 const fromP = alias(participants, 'from_p');
@@ -189,7 +213,7 @@ export function liveSnapshot(db: DB, event: Event, includeHidden: boolean): Live
 		teams: teamDTOs(db, event.id),
 		messages: recentMessages(db, event.id, includeHidden),
 		participantCount: participantCount(db, event.id),
-		projects: projectDTOs(db, event.id),
+		projects: projectDTOs(db, event.id).map((p) => publicProject(p, event, includeHidden)),
 		voting: votingState(db, event),
 		serverTime: Date.now()
 	};
@@ -206,12 +230,20 @@ function projectQuery(db: DB) {
 			participantId: projects.participantId,
 			authorName: users.displayName,
 			name: projects.name,
-			tagline: projects.tagline
+			tagline: projects.tagline,
+			link: projects.link,
+			deckSize: projects.deckSize,
+			showcase: projects.showcase
 		})
 		.from(projects)
 		.innerJoin(participants, eq(participants.id, projects.participantId))
 		.innerJoin(users, eq(users.id, participants.userId))
 		.leftJoin(teams, eq(teams.id, projects.teamId));
+}
+
+/** A project as others see it: the submission (link, PDF) only once voting starts. */
+export function publicProject(p: ProjectDTO, event: Pick<Event, 'votingPhase'>, privileged = false): ProjectDTO {
+	return privileged || submissionsVisible(event.votingPhase) ? p : { ...p, link: null, deckSize: null };
 }
 
 /** Projects of an event in team order, then by author name. */

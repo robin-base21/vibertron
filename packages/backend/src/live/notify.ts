@@ -2,8 +2,8 @@ import { eq } from 'drizzle-orm';
 import type { App } from '../app';
 import type { Event } from '../auth/guards';
 import { participants } from '../db/schema';
-import { eventDTO, pairingDTO, participantCount, participantDTOs, publicEventDTO } from '../dto';
-import type { PairingDTO } from 'common';
+import { eventDTO, pairingDTO, participantCount, participantDTOs, projectDTOs, publicEventDTO, publicProject } from '../dto';
+import type { PairingDTO, ProjectDTO } from 'common';
 
 /** participants.updated (manage) + participants.count (public). */
 export function notifyParticipants(app: App, eventId: string) {
@@ -29,4 +29,20 @@ export function notifyPairing(app: App, pairing: PairingDTO | string, removed = 
 		const userId = userIdOf(app, pid);
 		if (userId) app.live.toUser(userId, removed ? { type: 'pairing.updated', pairing: dto, removed: true } : { type: 'pairing.updated', pairing: dto });
 	}
+}
+
+/**
+ * project.updated: everyone gets the public copy (no link/PDF before voting), then managers and the
+ * author get the full one, which arrives last and wins on their screens.
+ */
+export function notifyProject(app: App, event: Event, project: ProjectDTO) {
+	app.live.toEvent(event.id, { type: 'project.updated', project: publicProject(project, event) });
+	app.live.toManagers(event.id, { type: 'project.updated', project });
+	const userId = userIdOf(app, project.participantId);
+	if (userId) app.live.toUser(userId, { type: 'project.updated', project });
+}
+
+/** After a voting phase change: submissions become visible (start) or hidden again (reset). */
+export function notifySubmissions(app: App, event: Event) {
+	for (const p of projectDTOs(app.db, event.id)) if (p.link || p.deckSize) notifyProject(app, event, p);
 }

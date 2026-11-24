@@ -3,6 +3,7 @@
 import {
 	type BlueprintLibraryItemDTO,
 	AnalyzeBody,
+	ApproveBody,
 	BallotBody,
 	CodenameBody,
 	CreateEventBody,
@@ -17,6 +18,8 @@ import {
 	PairBody,
 	ProjectBody,
 	SaveBlueprintBody,
+	ShowcaseBody,
+	TeamMoveBody,
 	UpdateEventBody,
 	UpdateInviteBody,
 	UpdateUserBody,
@@ -83,7 +86,20 @@ export const events = {
 	participants: (id: string, fetch?: Fetch) =>
 		api<{ participants: ParticipantDTO[] }>(`/api/events/${e(id)}/participants`, { fetch }),
 	removeParticipant: (id: string, pid: string) =>
-		api<Ok>(`/api/events/${e(id)}/participants/${e(pid)}`, { method: 'DELETE' })
+		api<Ok>(`/api/events/${e(id)}/participants/${e(pid)}`, { method: 'DELETE' }),
+	publish: (id: string) =>
+		api<{ event: EventDTO }>(`/api/events/${e(id)}/publish`, { method: 'POST' }),
+	approve: (id: string, pid: string, body: In<typeof ApproveBody>) =>
+		api<{ participant: ParticipantDTO; team: TeamDTO }>(
+			`/api/events/${e(id)}/participants/${e(pid)}/approve`,
+			{ body: ApproveBody.parse(body) }
+		),
+	reject: (id: string, pid: string) =>
+		api<{ participant: ParticipantDTO }>(`/api/events/${e(id)}/participants/${e(pid)}/reject`, {
+			method: 'POST'
+		}),
+	moveTeam: (id: string, body: In<typeof TeamMoveBody>) =>
+		api<{ teams: TeamDTO[] }>(`/api/events/${e(id)}/teams/move`, { body: TeamMoveBody.parse(body) })
 };
 
 export const invites = {
@@ -130,6 +146,23 @@ export const attendee = {
 			method: 'PUT',
 			body: ProjectBody.parse(body)
 		}),
+	uploadDeck: (slug: string, file: File | Blob) => {
+		const form = new FormData();
+		form.append('file', file);
+		return api<{ project: ProjectDTO }>(`/api/e/${e(slug)}/project/deck`, {
+			method: 'PUT',
+			body: form
+		});
+	},
+	setShowcase: (slug: string, body: In<typeof ShowcaseBody>) =>
+		api<{ project: ProjectDTO }>(`/api/e/${e(slug)}/project/showcase`, {
+			method: 'PUT',
+			body: ShowcaseBody.parse(body)
+		}),
+	removeDeck: (slug: string) =>
+		api<{ project: ProjectDTO }>(`/api/e/${e(slug)}/project/deck`, { method: 'DELETE' }),
+	/** Presentation PDF (opens in a new tab; the session cookie decides who may see it before voting). */
+	deckUrl: (projectId: string) => `${API_BASE}/api/projects/${e(projectId)}/deck`,
 	saveBallot: (slug: string, body: In<typeof BallotBody>) =>
 		api<{ ok: true; voting: VotingStateDTO }>(`/api/e/${e(slug)}/ballot`, {
 			method: 'PUT',

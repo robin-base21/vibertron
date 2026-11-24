@@ -15,7 +15,11 @@
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 
-	const closed = $derived(data.event.status !== 'open');
+	/** After launch people can still join until voting starts; the host lets them in. */
+	const late = $derived(data.event.status === 'live' || data.event.status === 'ended');
+	const closed = $derived(
+		data.event.status === 'draft' || (late && data.event.votingPhase !== 'none')
+	);
 	const valid = $derived(name.trim().length > 0 && code.length === JOIN_CODE_LENGTH);
 
 	function onCodeInput(e: Event & { currentTarget: HTMLInputElement }) {
@@ -36,7 +40,7 @@
 			await session.refresh();
 			await goto(`/e/${res.event.slug}`, { replaceState: true });
 		} catch (err) {
-			if (err instanceof ApiError && err.status === 403) {
+			if (err instanceof ApiError && err.status === 403 && /code/i.test(err.message)) {
 				needCode = true;
 				code = '';
 				error = 'That code has expired. Enter the code shown on the venue screen.';
@@ -60,20 +64,21 @@
 	{#if closed}
 		<div class="border border-bp-line/40 p-5">
 			<p class="bp-label text-lg">
-				{data.event.status === 'ended'
-					? 'This event has ended'
-					: data.event.status === 'live'
-						? 'This event has already launched'
-						: 'Joining hasn’t opened yet'}
+				{data.event.status === 'draft' ? 'Joining hasn’t opened yet' : 'Joining is closed'}
 			</p>
 			<p class="mt-1 font-mono text-xs opacity-60">
 				{data.event.status === 'draft'
 					? 'Try again when the organisers open the doors.'
-					: 'Ask an organiser if you need a spot.'}
+					: 'Voting has started, so teams are final.'}
 			</p>
 		</div>
 	{:else}
 		<form class="flex flex-col gap-5" onsubmit={submit}>
+			{#if late}
+				<p class="border border-dashed border-bp-line/50 p-3 text-sm">
+					This event is already under way. Join, and an organiser will put you on a team.
+				</p>
+			{/if}
 			<label class="flex flex-col gap-1">
 				<span class="bp-label text-xs opacity-70">Your name</span>
 				<input
