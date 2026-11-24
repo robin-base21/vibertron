@@ -19,7 +19,8 @@
     "demo": "bun run --filter backend demo",
     "demo:chat": "bun run --filter backend demo:chat",
     "dev:site": "bun run --filter site dev",
-    "check:site": "bun run --filter site check"
+    "check:site": "bun run --filter site check",
+    "ship": "bash scripts/ship.sh"
   },
   "devDependencies": {
     "typescript": "^5"

@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: packages/backend/Dockerfile
     container_name: vibertron-backend
+    # Fixed name: images built elsewhere (bun run ship) are used as is, whatever the folder is called.
+    image: vibertron-backend:latest
     ports:
       - "${BACKEND_PORT:-3001}:3001"
     environment:
@@ -31,6 +33,7 @@ services:
       context: .
       dockerfile: packages/frontend/Dockerfile
     container_name: vibertron-frontend
+    image: vibertron-frontend:latest
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
@@ -51,6 +54,7 @@ services:
       context: .
       dockerfile: packages/site/Dockerfile
     container_name: vibertron-site
+    image: vibertron-site:latest
     ports:
       - "${SITE_PORT:-3100}:3100"
     environment:
